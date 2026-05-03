@@ -1,3 +1,4 @@
+import nodemailer from 'nodemailer'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -29,45 +30,60 @@ function getBaseUrl(): string {
   return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
 }
 
-// Resend email service (HTTP API - no SMTP required)
-async function sendEmailViaResend(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
-  const resendApiKey = process.env.RESEND_API_KEY
-  
-  if (!resendApiKey) {
-    throw new Error('Resend API key is missing')
+// Simple SMTP transporter creation
+function createSMTPTransporter() {
+  const user = process.env.ZOHO_SMTP_USER
+  const pass = process.env.ZOHO_SMTP_PASS
+
+  if (!user || !pass) {
+    console.error('SMTP credentials missing:', { user: !!user, pass: !!pass })
+    throw new Error('Zoho SMTP credentials are missing')
   }
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'info@kirtibuildwell.com'
-  const fromName = process.env.RESEND_FROM_NAME || 'KirtiBuildWell'
+  console.log(` Creating SMTP transporter for ${user}`)
 
-  console.log('📧 Sending email via Resend API...')
+  // Create simple, reliable SMTP transporter
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.zoho.in',
+    port: 587,
+    secure: false, // STARTTLS
+    auth: {
+      user,
+      pass
+    },
+    debug: false,
+    connectionTimeout: 60000, // 60 seconds
+    greetingTimeout: 30000,   // 30 seconds
+    socketTimeout: 30000,     // 30 seconds
+    tls: {
+      rejectUnauthorized: false
+    }
+  } as any)
+
+  return transporter
+}
+
+// Simple SMTP email sending function
+async function sendEmailViaSMTP(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const transporter = createSMTPTransporter()
+  const fromEmail = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
+  const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+
+  console.log('📧 Sending email via SMTP...')
 
   try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: `${fromName} <${fromEmail}>`,
-        to: Array.isArray(to) ? to : [to],
-        subject: subject,
-        html: htmlContent,
-        text: textContent
-      })
+    const result = await transporter.sendMail({
+      from: `${fromName} <${fromEmail}>`,
+      to: Array.isArray(to) ? to : [to],
+      subject: subject,
+      html: htmlContent,
+      text: textContent
     })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`Resend API error: ${response.status} - ${errorData.message || 'Unknown error'}`)
-    }
-
-    const result = await response.json()
-    console.log('✅ Email sent successfully via Resend:', result.id)
+    console.log('✅ Email sent successfully via SMTP:', result.messageId)
     
   } catch (error) {
-    console.error('❌ Resend email failed:', error)
+    console.error('❌ SMTP email failed:', error)
     throw error
   }
 }
@@ -109,14 +125,14 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    await sendEmailViaResend(
+    await sendEmailViaSMTP(
       payload.email,
       'Thank you for your inquiry - KirtiBuildWell',
       htmlContent,
       textContent
     )
     
-    console.log('✅ Lead confirmation email sent successfully via Resend')
+    console.log('✅ Lead confirmation email sent successfully via SMTP')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
@@ -149,14 +165,14 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 
     const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
-    await sendEmailViaResend(
+    await sendEmailViaSMTP(
       payload.email,
       'Quick follow-up on your inquiry - KirtiBuildWell',
       followUpHtml,
       textContent
     )
     
-    console.log('✅ Follow-up email sent successfully via Resend')
+    console.log('✅ Follow-up email sent successfully via SMTP')
     
   } catch (error) {
     console.error('❌ Follow-up email failed:', error)
@@ -202,14 +218,14 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
 
-    await sendEmailViaResend(
+    await sendEmailViaSMTP(
       adminEmails,
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       adminHtml,
       textContent
     )
     
-    console.log('✅ Admin notification email sent successfully via Resend')
+    console.log('✅ Admin notification email sent successfully via SMTP')
     
     // Log activity
     await Activity.create({
