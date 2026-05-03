@@ -45,34 +45,20 @@ function createTransporter() {
     auth: { user, pass },
     debug: process.env.NODE_ENV === 'development', // Enable debug logging only in development
     logger: process.env.NODE_ENV === 'development', // Enable logger only in development
-    connectionTimeout: 30000, // 30 seconds connection timeout
-    greetingTimeout: 10000, // 10 seconds greeting timeout
-    socketTimeout: 20000, // 20 seconds socket timeout
-    maxConnections: 5,
-    maxMessages: 100,
-    rateDelta: 1000,
-    rateLimit: 5,
+    connectionTimeout: 60000, // 60 seconds connection timeout (increased for production)
+    greetingTimeout: 30000, // 30 seconds greeting timeout (increased)
+    socketTimeout: 45000, // 45 seconds socket timeout (increased)
+    maxConnections: 3, // Reduced connections for stability
+    maxMessages: 50, // Reduced messages per connection
+    rateDelta: 2000, // Increased rate delta
+    rateLimit: 3, // Reduced rate limit
     tls: {
-      rejectUnauthorized: false // Allow self-signed certificates in development
-    }
+      rejectUnauthorized: false // Allow self-signed certificates
+    },
+    pool: true // Enable connection pooling
   } as any)
 
   return transporter
-}
-
-// Verify transporter connection
-async function verifyTransporter(transporter: any): Promise<void> {
-  try {
-    await withTimeout(
-      transporter.verify(),
-      15000, // 15 seconds timeout for verification
-      'SMTP connection verification'
-    )
-    console.log('SMTP transporter verified successfully')
-  } catch (error) {
-    console.error('SMTP transporter verification failed:', error)
-    throw new Error(`SMTP connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-  }
 }
 
 // Timeout wrapper function
@@ -88,9 +74,6 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
   const transporter = createTransporter()
   const fromAddress = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-
-  // Verify connection before sending
-  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -189,7 +172,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
       html: htmlContent,
       text: `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     }),
-    25000, // 25 seconds timeout for sending email
+    45000, // 45 seconds timeout for sending email (increased)
     'Lead confirmation email'
   )
 }
@@ -198,9 +181,6 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
   const transporter = createTransporter()
   const fromAddress = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-
-  // Verify connection before sending
-  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -235,7 +215,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
       html: htmlContent,
       text: `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
     }),
-    25000, // 25 seconds timeout for sending email
+    45000, // 45 seconds timeout for sending email (increased)
     'Lead follow-up email'
   )
 }
@@ -253,9 +233,6 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
     console.warn('No admin users found to send notification email')
     return
   }
-
-  // Verify connection before sending
-  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -363,7 +340,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       html: htmlContent,
       text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: http://localhost:3000/admin/leads/${payload.leadId}`
     }),
-    25000, // 25 seconds timeout for sending email
+    45000, // 45 seconds timeout for sending email (increased)
     'Admin notification email'
   )
 
