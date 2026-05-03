@@ -25,6 +25,11 @@ type AdminNotificationPayload = {
   leadId: string
 }
 
+// Get base URL for email links
+function getBaseUrl(): string {
+  return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
+}
+
 function createTransporter() {
   const host = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
   const port = Number(process.env.ZOHO_SMTP_PORT || 587)
@@ -283,6 +288,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 export async function sendAdminNotificationEmail(payload: AdminNotificationPayload): Promise<void> {
   console.log('📧 Sending admin notification email for lead:', payload.leadName)
   
+  const baseUrl = getBaseUrl()
   let transporter: any
   let fromAddress: string
   let fromName: string
@@ -326,7 +332,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       to: adminEmails,
       subject: `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       html: simpleAdminHtml,
-      text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: http://localhost:3000/admin/leads/${payload.leadId}`
+      text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
     })
     
     // Race between email send and timeout
@@ -352,7 +358,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       adminEmails.join(','),
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}`,
-      `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: http://localhost:3000/admin/leads/${payload.leadId}`
+      `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
     )
     
     // Log activity even if email failed
