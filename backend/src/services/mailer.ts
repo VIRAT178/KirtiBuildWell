@@ -145,61 +145,178 @@ async function sendEmailWithRetry(transporter: any, mailOptions: any, maxRetries
   throw lastError
 }
 
-// Fallback email service using a different approach
+// Fallback email service with multiple options
 async function sendFallbackEmail(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
   console.log('Attempting fallback email service...')
   
-  try {
-    // Try a simpler SMTP configuration for fallback
-    const fallbackTransporter = nodemailer.createTransport({
-      host: 'smtp.zoho.in',
-      port: 587,
-      secure: false,
-      auth: {
-        user: process.env.ZOHO_SMTP_USER,
-        pass: process.env.ZOHO_SMTP_PASS
-      },
-      debug: false,
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      tls: { rejectUnauthorized: false }
-    } as any)
+  // Try multiple SMTP configurations
+  const fallbackConfigs = [
+    {
+      name: 'Zoho SMTP (port 465)',
+      config: {
+        host: 'smtp.zoho.in',
+        port: 465,
+        secure: true,
+        auth: {
+          user: process.env.ZOHO_SMTP_USER,
+          pass: process.env.ZOHO_SMTP_PASS
+        },
+        debug: false,
+        connectionTimeout: 10000,
+        greetingTimeout: 8000,
+        socketTimeout: 8000,
+        tls: { rejectUnauthorized: false }
+      }
+    },
+    {
+      name: 'Zoho SMTP (port 587)',
+      config: {
+        host: 'smtp.zoho.in',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.ZOHO_SMTP_USER,
+          pass: process.env.ZOHO_SMTP_PASS
+        },
+        debug: false,
+        connectionTimeout: 10000,
+        greetingTimeout: 8000,
+        socketTimeout: 8000,
+        tls: { rejectUnauthorized: false }
+      }
+    },
+    {
+      name: 'Zoho SMTP (no TLS)',
+      config: {
+        host: 'smtp.zoho.in',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.ZOHO_SMTP_USER,
+          pass: process.env.ZOHO_SMTP_PASS
+        },
+        debug: false,
+        connectionTimeout: 8000,
+        greetingTimeout: 5000,
+        socketTimeout: 5000
+      }
+    }
+  ]
 
-    console.log('🔄 Attempting to send email with fallback configuration...')
-    
-    // Send with a longer timeout for fallback
-    const emailPromise = fallbackTransporter.sendMail({
-      from: `KirtiBuildWell <${process.env.ZOHO_SMTP_USER}>`,
-      to,
-      subject,
-      html: htmlContent,
-      text: textContent
-    })
-    
-    // Use a 20-second timeout for fallback
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Fallback email send timeout')), 20000)
-    })
-    
-    await Promise.race([emailPromise, timeoutPromise])
-    console.log('✅ Fallback email sent successfully to:', to)
-    
-  } catch (fallbackError) {
-    console.error('❌ Fallback email also failed:', fallbackError)
-    
-    // As a last resort, use a different email service or queue for later
-    console.log('📝 Email queued for later delivery:', {
-      to,
-      subject,
-      textContent: textContent.substring(0, 100) + '...',
-      timestamp: new Date().toISOString()
-    })
-    
-    // You could implement a queue system here or use a service like SendGrid
-    // For now, we'll log it but not fail the process
+  for (const fallback of fallbackConfigs) {
+    try {
+      console.log(`🔄 Trying ${fallback.name}...`)
+      
+      const fallbackTransporter = nodemailer.createTransport(fallback.config as any)
+      
+      // Quick connection test
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Connection test timeout')), 5000)
+        fallbackTransporter.verify((error: any) => {
+          clearTimeout(timeout)
+          if (error) {
+            reject(error)
+          } else {
+            resolve()
+          }
+        })
+      })
+      
+      // Send email
+      const emailPromise = fallbackTransporter.sendMail({
+        from: `KirtiBuildWell <${process.env.ZOHO_SMTP_USER}>`,
+        to,
+        subject,
+        html: htmlContent,
+        text: textContent
+      })
+      
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Email send timeout')), 15000)
+      })
+      
+      await Promise.race([emailPromise, timeoutPromise])
+      console.log(`✅ Email sent successfully using ${fallback.name} to:`, to)
+      return // Success, exit function
+      
+    } catch (error) {
+      console.error(`❌ ${fallback.name} failed:`, error)
+      continue // Try next configuration
+    }
+  }
+  
+  // All SMTP attempts failed
+  console.error('❌ All SMTP configurations failed')
+  
+  // Store email for retry later (could implement a queue system)
+  await storeEmailForRetry(to, subject, htmlContent, textContent)
+}
+
+// Store failed emails for retry (simple in-memory storage for now)
+const failedEmails: Array<{
+  to: string
+  subject: string
+  htmlContent: string
+  textContent: string
+  timestamp: Date
+  attempts: number
+}> = []
+
+async function storeEmailForRetry(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const emailData = {
+    to,
+    subject,
+    htmlContent,
+    textContent,
+    timestamp: new Date(),
+    attempts: 0
+  }
+  
+  failedEmails.push(emailData)
+  
+  console.log('📝 Email stored for retry:', {
+    to,
+    subject,
+    timestamp: emailData.timestamp.toISOString(),
+    queueLength: failedEmails.length
+  })
+  
+  // Limit queue size to prevent memory issues
+  if (failedEmails.length > 100) {
+    failedEmails.shift() // Remove oldest
   }
 }
+
+// Retry failed emails periodically
+async function retryFailedEmails(): Promise<void> {
+  if (failedEmails.length === 0) return
+  
+  console.log(`🔄 Retrying ${failedEmails.length} failed emails...`)
+  
+  for (let i = failedEmails.length - 1; i >= 0; i--) {
+    const email = failedEmails[i]
+    
+    // Skip if too many attempts or too old
+    if (email.attempts >= 3 || Date.now() - email.timestamp.getTime() > 3600000) { // 1 hour
+      failedEmails.splice(i, 1)
+      continue
+    }
+    
+    email.attempts++
+    
+    try {
+      await sendFallbackEmail(email.to, email.subject, email.htmlContent, email.textContent)
+      // If successful, remove from queue
+      failedEmails.splice(i, 1)
+      console.log(`✅ Successfully retried email to: ${email.to}`)
+    } catch (error) {
+      console.error(`❌ Retry failed for ${email.to}:`, error)
+    }
+  }
+}
+
+// Retry failed emails every 5 minutes
+setInterval(retryFailedEmails, 300000)
 
 // Simple email content generator for fallback
 function generateSimpleConfirmationEmail(payload: ConfirmationPayload): string {
