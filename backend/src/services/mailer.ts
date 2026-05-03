@@ -145,191 +145,6 @@ async function sendEmailWithRetry(transporter: any, mailOptions: any, maxRetries
   throw lastError
 }
 
-// HTTP-based email service that bypasses SMTP entirely
-async function sendFallbackEmail(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
-  console.log('🔄 Attempting HTTP-based email service...')
-  
-  // Try multiple HTTP email services that don't require SMTP
-  const emailServices = [
-    {
-      name: 'EmailJS Service',
-      url: 'https://api.emailjs.com/api/v1.0/email/send',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: {
-        service_id: process.env.EMAILJS_SERVICE_ID || 'default_service',
-        template_id: process.env.EMAILJS_TEMPLATE_ID || 'default_template',
-        user_id: process.env.EMAILJS_PUBLIC_KEY || 'default_user',
-        template_params: {
-          to_email: to,
-          subject: subject,
-          html_content: htmlContent,
-          text_content: textContent,
-          from_name: 'KirtiBuildWell'
-        }
-      }
-    },
-    {
-      name: 'Formspree Service',
-      url: 'https://formspree.io/f/' + (process.env.FORMSPREE_FORM_ID || 'default_form'),
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: {
-        email: to,
-        subject: subject,
-        message: textContent,
-        html: htmlContent,
-        from_name: 'KirtiBuildWell'
-      }
-    },
-    {
-      name: 'Webhook Service',
-      url: process.env.EMAIL_WEBHOOK_URL || 'https://kirtibuildwell.onrender.com/api/email-webhook',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: {
-        to,
-        subject,
-        htmlContent,
-        textContent,
-        timestamp: new Date().toISOString(),
-        source: 'KirtiBuildWell Email Service',
-        service: 'webhook'
-      }
-    }
-  ]
-
-  for (const service of emailServices) {
-    try {
-      console.log(`🌐 Trying ${service.name}...`)
-      
-      const response = await fetch(service.url, {
-        method: service.method,
-        headers: service.headers as Record<string, string>,
-        body: JSON.stringify(service.body)
-      })
-
-      if (response.ok || response.status === 200) {
-        console.log(`✅ Email sent successfully using ${service.name} to:`, to)
-        return
-      } else {
-        console.log(`⚠️ ${service.name} returned status: ${response.status}`)
-      }
-    } catch (error) {
-      console.error(`❌ ${service.name} failed:`, error)
-      continue
-    }
-  }
-  
-  // If all HTTP services fail, try a simple email logging service
-  try {
-    console.log('📝 Using email logging service as final fallback...')
-    
-    const logData = {
-      to,
-      subject,
-      htmlContent,
-      textContent,
-      timestamp: new Date().toISOString(),
-      status: 'failed',
-      reason: 'All email services failed',
-      service: 'logging'
-    }
-
-    // Store for retry
-    await storeEmailForRetry(to, subject, htmlContent, textContent)
-    
-    // Log the failure details
-    console.log('📝 EMAIL DELIVERY FAILED - Details:', {
-      to,
-      subject,
-      timestamp: new Date().toISOString(),
-      error: 'All HTTP email services failed',
-      queueLength: failedEmails.length
-    })
-    
-    return // Don't throw error, just log and continue
-    
-  } catch (error) {
-    console.error('❌ Email logging service failed:', error)
-  }
-}
-
-
-// Store failed emails for retry (simple in-memory storage for now)
-const failedEmails: Array<{
-  to: string
-  subject: string
-  htmlContent: string
-  textContent: string
-  timestamp: Date
-  attempts: number
-}> = []
-
-async function storeEmailForRetry(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
-  const emailData = {
-    to,
-    subject,
-    htmlContent,
-    textContent,
-    timestamp: new Date(),
-    attempts: 0
-  }
-  
-  failedEmails.push(emailData)
-  
-  console.log('📝 Email stored for retry:', {
-    to,
-    subject,
-    timestamp: emailData.timestamp.toISOString(),
-    queueLength: failedEmails.length
-  })
-  
-  // Limit queue size to prevent memory issues
-  if (failedEmails.length > 100) {
-    failedEmails.shift() // Remove oldest
-  }
-}
-
-// Retry failed emails periodically using HTTP services
-async function retryFailedEmails(): Promise<void> {
-  if (failedEmails.length === 0) return
-  
-  console.log(`🔄 Retrying ${failedEmails.length} failed emails with HTTP services...`)
-  
-  for (let i = failedEmails.length - 1; i >= 0; i--) {
-    const email = failedEmails[i]
-    
-    // Skip if too many attempts or too old
-    if (email.attempts >= 5 || Date.now() - email.timestamp.getTime() > 7200000) { // 2 hours, 5 attempts
-      failedEmails.splice(i, 1)
-      console.log(`🗑️ Removed expired email from queue: ${email.to}`)
-      continue
-    }
-    
-    email.attempts++
-    
-    try {
-      // Use the HTTP-based fallback service for retries
-      await sendFallbackEmail(email.to, email.subject, email.htmlContent, email.textContent)
-      // If successful, remove from queue
-      failedEmails.splice(i, 1)
-      console.log(`✅ Successfully retried email to: ${email.to} (attempt ${email.attempts})`)
-    } catch (error) {
-      console.error(`❌ Retry ${email.attempts} failed for ${email.to}:`, error)
-    }
-  }
-}
-
-// Retry failed emails every 3 minutes (more frequent for HTTP services)
-setInterval(retryFailedEmails, 180000)
 
 // Simple email content generator for fallback
 function generateSimpleConfirmationEmail(payload: ConfirmationPayload): string {
@@ -361,42 +176,43 @@ function generateSimpleConfirmationEmail(payload: ConfirmationPayload): string {
 export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): Promise<void> {
   console.log('📧 Sending lead confirmation email to:', payload.email)
   
-  // For production stability, use immediate fallback to prevent timeouts
   try {
-    // Try to create transporter
-    const transporter = createTransporter()
-    const fromAddress = (process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER) as string
+    // Simple direct SMTP approach
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.zoho.in',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.ZOHO_SMTP_USER,
+        pass: process.env.ZOHO_SMTP_PASS
+      },
+      debug: false,
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+      tls: { rejectUnauthorized: false }
+    } as any)
+
+    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
     const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
     
-    // Simple email content for faster sending
-    const simpleHtml = generateSimpleConfirmationEmail(payload)
+    // Use the existing email format
+    const htmlContent = generateSimpleConfirmationEmail(payload)
     
-    // Send with longer timeout to give more time for success
-    const emailPromise = transporter.sendMail({
+    const result = await transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to: payload.email,
       subject: 'Thank you for your inquiry - KirtiBuildWell',
-      html: simpleHtml,
+      html: htmlContent,
       text: `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     })
     
-    // Race between email send and timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout')), 20000) // 20 second timeout
-    })
-    
-    await Promise.race([emailPromise, timeoutPromise])
-    console.log('✅ Lead confirmation email sent successfully')
+    console.log('✅ Lead confirmation email sent successfully:', result.messageId)
     
   } catch (error) {
-    console.error('❌ Lead confirmation email failed, using fallback:', error)
-    // Always use fallback to ensure process continues
-    await sendFallbackEmail(
-      payload.email,
-      'Thank you for your inquiry - KirtiBuildWell',
-      generateSimpleConfirmationEmail(payload),
-      `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
-    )
+    console.error('❌ Lead confirmation email failed:', error)
+    // Don't block the process, just log the error
+    console.log('📝 Email delivery failed but process continues')
   }
 }
 
@@ -404,11 +220,26 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
   console.log('📧 Sending follow-up email to:', payload.email)
   
   try {
-    const transporter = createTransporter()
-    const fromAddress = (process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER) as string
+    // Simple direct SMTP approach
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.zoho.in',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.ZOHO_SMTP_USER,
+        pass: process.env.ZOHO_SMTP_PASS
+      },
+      debug: false,
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+      tls: { rejectUnauthorized: false }
+    } as any)
+
+    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
     const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
-    const simpleHtml = `
+    const followUpHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
           <h1 style="color: #d4af37; margin-bottom: 10px;">KirtiBuildWell</h1>
@@ -425,60 +256,58 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
       </div>
     `
 
-    // Send with very short timeout to prevent hanging
-    const emailPromise = transporter.sendMail({
+    const result = await transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to: payload.email,
       subject: 'Quick follow-up on your inquiry - KirtiBuildWell',
-      html: simpleHtml,
+      html: followUpHtml,
       text: `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
     })
     
-    // Race between email send and timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout')), 10000) // 10 second timeout
-    })
-    
-    await Promise.race([emailPromise, timeoutPromise])
-    console.log('✅ Follow-up email sent successfully')
+    console.log('✅ Follow-up email sent successfully:', result.messageId)
     
   } catch (error) {
-    console.error('❌ Follow-up email failed, using fallback:', error)
-    // Always use fallback to ensure process continues
-    await sendFallbackEmail(
-      payload.email,
-      'Quick follow-up on your inquiry - KirtiBuildWell',
-      `Follow-up email for ${payload.name}`,
-      `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
-    )
+    console.error('❌ Follow-up email failed:', error)
+    // Don't block the process, just log the error
+    console.log('📝 Follow-up email delivery failed but process continues')
   }
 }
 
 export async function sendAdminNotificationEmail(payload: AdminNotificationPayload): Promise<void> {
   console.log('📧 Sending admin notification email for lead:', payload.leadName)
   
-  const baseUrl = getBaseUrl()
-  let transporter: any
-  let fromAddress: string
-  let fromName: string
-  let adminEmails: string[] = []
-  
   try {
-    transporter = createTransporter()
-    fromAddress = (process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER) as string
-    fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+    // Simple direct SMTP approach
+    const transporter = nodemailer.createTransport({
+      host: 'smtp.zoho.in',
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.ZOHO_SMTP_USER,
+        pass: process.env.ZOHO_SMTP_PASS
+      },
+      debug: false,
+      connectionTimeout: 30000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+      tls: { rejectUnauthorized: false }
+    } as any)
+
+    const baseUrl = getBaseUrl()
+    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
+    const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
     // Get all admin users
     const adminUsers = await User.find({ role: 'admin' }).lean()
-    adminEmails = adminUsers.map(user => user.email)
+    const adminEmails = adminUsers.map(user => user.email)
 
     if (adminEmails.length === 0) {
       console.warn('No admin users found to send notification email')
       return
     }
 
-    // Simple admin notification content for faster sending
-    const simpleAdminHtml = `
+    // Simple admin notification HTML
+    const adminHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
         <div style="background-color: #dc3545; padding: 20px; text-align: center;">
           <h1 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 600;">🔥 New Lead Alert</h1>
@@ -491,26 +320,20 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
           <p><strong>Phone:</strong> ${payload.leadPhone}</p>
           ${payload.propertyTitle ? `<p><strong>Project:</strong> ${payload.propertyTitle}</p>` : ''}
           ${payload.leadMessage ? `<p><strong>Message:</strong> "${payload.leadMessage}"</p>` : ''}
+          <p><strong>View Details:</strong> <a href="${baseUrl}/admin/leads/${payload.leadId}">Click here</a></p>
         </div>
       </div>
     `
 
-    // Send with longer timeout to give more time for success
-    const emailPromise = transporter.sendMail({
+    const result = await transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to: adminEmails,
       subject: `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
-      html: simpleAdminHtml,
+      html: adminHtml,
       text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
     })
     
-    // Race between email send and timeout
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout')), 20000) // 20 second timeout
-    })
-    
-    await Promise.race([emailPromise, timeoutPromise])
-    console.log('✅ Admin notification email sent successfully')
+    console.log('✅ Admin notification email sent successfully:', result.messageId)
     
     // Log activity
     await Activity.create({
@@ -521,23 +344,8 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
     })
     
   } catch (error) {
-    console.error('❌ Admin notification email failed, using fallback:', error)
-    // Always use fallback to ensure process continues
-    await sendFallbackEmail(
-      adminEmails.join(','),
-      `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
-      `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}`,
-      `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
-    )
-    
-    // Log activity even if email failed
-    await Activity.create({
-      type: 'email_sent',
-      description: `Admin notification failed for new lead: ${payload.leadName}`,
-      leadId: payload.leadId,
-      status: 'failed',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      metadata: { recipientCount: adminEmails.length, recipients: adminEmails }
-    })
+    console.error('❌ Admin notification email failed:', error)
+    // Don't block the process, just log the error
+    console.log('📝 Admin email delivery failed but process continues')
   }
 }
