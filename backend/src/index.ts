@@ -9,6 +9,7 @@ import leadRoutes from './routes/leads'
 import analyticsRoutes from './routes/analytics'
 import testZohoRoutes from './routes/test-zoho'
 import testEmailRoutes from './routes/test-email'
+import emailWebhookRoutes from './routes/emailWebhook'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import { sanitizeBody } from './middleware/validation'
 import { startLeadFollowUpScheduler } from './schedulers/leadFollowUpScheduler'
@@ -61,6 +62,7 @@ app.use('/api/leads', leadRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/test-zoho', testZohoRoutes)
 app.use('/api/test-email', testEmailRoutes)
+app.use('/api/email-webhook', emailWebhookRoutes)
 
 // ========================
 // 🔥 ZOHO OAUTH CALLBACK

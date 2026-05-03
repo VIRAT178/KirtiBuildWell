@@ -189,7 +189,7 @@ async function sendFallbackEmail(to: string, subject: string, htmlContent: strin
     },
     {
       name: 'Webhook Service',
-      url: process.env.EMAIL_WEBHOOK_URL || 'https://httpbin.org/post',
+      url: process.env.EMAIL_WEBHOOK_URL || 'https://kirtibuildwell.onrender.com/api/email-webhook',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
