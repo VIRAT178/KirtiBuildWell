@@ -1,7 +1,6 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
-import fetch from 'node-fetch'
 
 import { connectDB } from './lib/mongo'
 import authRoutes from './routes/auth'
@@ -78,7 +77,7 @@ app.get('/auth/zoho/callback', async (req, res) => {
 
     console.log("🔥 AUTH CODE:", code.substring(0, 15) + "...")
 
-    // ✅ IMPORTANT: EXACT match with Zoho console
+    // ✅ EXACT MATCH with Zoho console
     const REDIRECT_URI = "https://kirtibuildwell.onrender.com/auth/zoho/callback"
 
     const response = await fetch("https://accounts.zoho.in/oauth/v2/token", {
@@ -99,12 +98,12 @@ app.get('/auth/zoho/callback', async (req, res) => {
 
     console.log("📦 ZOHO RESPONSE:", data)
 
-    // ❌ अगर Zoho ने error दिया
+    // ❌ Zoho error case
     if (!data.access_token) {
       return res.status(400).json({
         success: false,
         error: "Zoho token exchange failed",
-        zoho_error: data   // 🔥 REAL ERROR SHOW
+        zoho_error: data
       })
     }
 
@@ -151,5 +150,5 @@ connectDB()
     })
   })
   .catch(err => {
-    console.error("DB connection failed", err)
+    console.error("❌ DB connection failed", err)
   })
