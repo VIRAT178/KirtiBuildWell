@@ -283,14 +283,19 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 export async function sendAdminNotificationEmail(payload: AdminNotificationPayload): Promise<void> {
   console.log('📧 Sending admin notification email for lead:', payload.leadName)
   
+  let transporter: any
+  let fromAddress: string
+  let fromName: string
+  let adminEmails: string[] = []
+  
   try {
-    const transporter = createTransporter()
-    const fromAddress = (process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER) as string
-    const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+    transporter = createTransporter()
+    fromAddress = (process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER) as string
+    fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
     // Get all admin users
     const adminUsers = await User.find({ role: 'admin' }).lean()
-    const adminEmails = adminUsers.map(user => user.email)
+    adminEmails = adminUsers.map(user => user.email)
 
     if (adminEmails.length === 0) {
       console.warn('No admin users found to send notification email')
