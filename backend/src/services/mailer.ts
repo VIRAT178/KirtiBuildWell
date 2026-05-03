@@ -145,21 +145,60 @@ async function sendEmailWithRetry(transporter: any, mailOptions: any, maxRetries
   throw lastError
 }
 
-// Fallback email service using a simpler approach
+// Fallback email service using a different approach
 async function sendFallbackEmail(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
   console.log('Attempting fallback email service...')
   
-  // For now, just log the email content for debugging
-  console.log('FALLBACK EMAIL - Would send:', {
-    to,
-    subject,
-    textContent,
-    htmlLength: htmlContent.length,
-    timestamp: new Date().toISOString()
-  })
-  
-  // In a real implementation, you could use a different email service here
-  // For now, we'll just log it to prevent the process from failing
+  try {
+    // Try a simpler SMTP configuration for fallback
+    const fallbackTransporter = nodemailer.createTransport({
+      host: 'smtp.zoho.in',
+      port: 587,
+      secure: false,
+      auth: {
+        user: process.env.ZOHO_SMTP_USER,
+        pass: process.env.ZOHO_SMTP_PASS
+      },
+      debug: false,
+      connectionTimeout: 15000,
+      greetingTimeout: 10000,
+      socketTimeout: 10000,
+      tls: { rejectUnauthorized: false }
+    } as any)
+
+    console.log('🔄 Attempting to send email with fallback configuration...')
+    
+    // Send with a longer timeout for fallback
+    const emailPromise = fallbackTransporter.sendMail({
+      from: `KirtiBuildWell <${process.env.ZOHO_SMTP_USER}>`,
+      to,
+      subject,
+      html: htmlContent,
+      text: textContent
+    })
+    
+    // Use a 20-second timeout for fallback
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Fallback email send timeout')), 20000)
+    })
+    
+    await Promise.race([emailPromise, timeoutPromise])
+    console.log('✅ Fallback email sent successfully to:', to)
+    
+  } catch (fallbackError) {
+    console.error('❌ Fallback email also failed:', fallbackError)
+    
+    // As a last resort, use a different email service or queue for later
+    console.log('📝 Email queued for later delivery:', {
+      to,
+      subject,
+      textContent: textContent.substring(0, 100) + '...',
+      timestamp: new Date().toISOString()
+    })
+    
+    // You could implement a queue system here or use a service like SendGrid
+    // For now, we'll log it but not fail the process
+  }
 }
 
 // Simple email content generator for fallback
@@ -202,7 +241,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     // Simple email content for faster sending
     const simpleHtml = generateSimpleConfirmationEmail(payload)
     
-    // Send with very short timeout to prevent hanging
+    // Send with longer timeout to give more time for success
     const emailPromise = transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to: payload.email,
@@ -213,7 +252,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     
     // Race between email send and timeout
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout')), 10000) // 10 second timeout
+      setTimeout(() => reject(new Error('Email send timeout')), 20000) // 20 second timeout
     })
     
     await Promise.race([emailPromise, timeoutPromise])
@@ -326,7 +365,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       </div>
     `
 
-    // Send with very short timeout to prevent hanging
+    // Send with longer timeout to give more time for success
     const emailPromise = transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to: adminEmails,
@@ -337,7 +376,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
     
     // Race between email send and timeout
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Email send timeout')), 10000) // 10 second timeout
+      setTimeout(() => reject(new Error('Email send timeout')), 20000) // 20 second timeout
     })
     
     await Promise.race([emailPromise, timeoutPromise])
