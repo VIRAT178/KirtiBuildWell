@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -30,120 +29,49 @@ function getBaseUrl(): string {
   return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
 }
 
-function createTransporter() {
-  const host = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
-  const port = Number(process.env.ZOHO_SMTP_PORT || 587)
-  const user = process.env.ZOHO_SMTP_USER
-  const pass = process.env.ZOHO_SMTP_PASS
-
-  if (!user || !pass) {
-    console.error('SMTP credentials missing:', { user: !!user, pass: !!pass })
-    throw new Error('Zoho SMTP credentials are missing')
+// Resend email service (HTTP API - no SMTP required)
+async function sendEmailViaResend(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const resendApiKey = process.env.RESEND_API_KEY
+  
+  if (!resendApiKey) {
+    throw new Error('Resend API key is missing')
   }
 
-  console.log(` Creating SMTP transporter for ${user} on ${host}:${port}`)
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'info@kirtibuildwell.com'
+  const fromName = process.env.RESEND_FROM_NAME || 'KirtiBuildWell'
 
-  // Try multiple configurations for better compatibility
-  const configs = [
-    {
-      // Primary configuration
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      debug: process.env.NODE_ENV === 'development',
-      logger: process.env.NODE_ENV === 'development',
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      tls: { rejectUnauthorized: false }
-    },
-    {
-      // Fallback configuration 1 - without service name
-      host,
-      port,
-      secure: port === 465,
-      auth: { user, pass },
-      debug: process.env.NODE_ENV === 'development',
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      tls: { rejectUnauthorized: false }
-    },
-    {
-      // Fallback configuration 2 - with explicit service
-      service: 'zoho',
-      auth: { user, pass },
-      debug: process.env.NODE_ENV === 'development',
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      tls: { rejectUnauthorized: false }
-    }
-  ]
+  console.log('📧 Sending email via Resend API...')
 
-  // Try each configuration until one works
-  for (let i = 0; i < configs.length; i++) {
-    try {
-      const transporter = nodemailer.createTransport(configs[i] as any)
-      console.log(`SMTP transporter created with configuration ${i + 1}`)
-      return transporter
-    } catch (error) {
-      console.error(`Configuration ${i + 1} failed:`, error)
-      if (i === configs.length - 1) {
-        throw error
-      }
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: `${fromName} <${fromEmail}>`,
+        to: Array.isArray(to) ? to : [to],
+        subject: subject,
+        html: htmlContent,
+        text: textContent
+      })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      throw new Error(`Resend API error: ${response.status} - ${errorData.message || 'Unknown error'}`)
     }
+
+    const result = await response.json()
+    console.log('✅ Email sent successfully via Resend:', result.id)
+    
+  } catch (error) {
+    console.error('❌ Resend email failed:', error)
+    throw error
   }
-
-  throw new Error('All SMTP configurations failed')
 }
 
-// Timeout wrapper function
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
-  })
-  
-  return Promise.race([promise, timeoutPromise])
-}
-
-// Robust email sending with retry logic
-async function sendEmailWithRetry(transporter: any, mailOptions: any, maxRetries: number = 3): Promise<any> {
-  let lastError: any
-  
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`Email send attempt ${attempt}/${maxRetries}`)
-      
-      const result = await withTimeout(
-        transporter.sendMail(mailOptions),
-        30000, // 30 second timeout per attempt
-        `Email send attempt ${attempt}`
-      )
-      
-      console.log('Email sent successfully:', (result as any).messageId)
-      return result
-    } catch (error) {
-      lastError = error
-      console.error(`Email send attempt ${attempt} failed:`, error)
-      
-      // Don't retry on authentication errors
-      if ((error as any).message && (error as any).message.includes('authentication')) {
-        throw error
-      }
-      
-      // Wait before retry (exponential backoff)
-      if (attempt < maxRetries) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
-        console.log(`Retrying in ${delay}ms...`)
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
-    }
-  }
-  
-  throw lastError
-}
 
 
 // Simple email content generator for fallback
@@ -177,37 +105,18 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
   console.log('📧 Sending lead confirmation email to:', payload.email)
   
   try {
-    // Simple direct SMTP approach
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.zoho.in',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.ZOHO_SMTP_USER,
-        pass: process.env.ZOHO_SMTP_PASS
-      },
-      debug: false,
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
-      tls: { rejectUnauthorized: false }
-    } as any)
-
-    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-    const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-    
-    // Use the existing email format
+    // Use Resend API instead of SMTP
     const htmlContent = generateSimpleConfirmationEmail(payload)
+    const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    const result = await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      to: payload.email,
-      subject: 'Thank you for your inquiry - KirtiBuildWell',
-      html: htmlContent,
-      text: `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
-    })
+    await sendEmailViaResend(
+      payload.email,
+      'Thank you for your inquiry - KirtiBuildWell',
+      htmlContent,
+      textContent
+    )
     
-    console.log('✅ Lead confirmation email sent successfully:', result.messageId)
+    console.log('✅ Lead confirmation email sent successfully via Resend')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
@@ -220,25 +129,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
   console.log('📧 Sending follow-up email to:', payload.email)
   
   try {
-    // Simple direct SMTP approach
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.zoho.in',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.ZOHO_SMTP_USER,
-        pass: process.env.ZOHO_SMTP_PASS
-      },
-      debug: false,
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
-      tls: { rejectUnauthorized: false }
-    } as any)
-
-    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-    const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-
+    // Use Resend API instead of SMTP
     const followUpHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
@@ -256,15 +147,16 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
       </div>
     `
 
-    const result = await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      to: payload.email,
-      subject: 'Quick follow-up on your inquiry - KirtiBuildWell',
-      html: followUpHtml,
-      text: `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
-    })
+    const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
+
+    await sendEmailViaResend(
+      payload.email,
+      'Quick follow-up on your inquiry - KirtiBuildWell',
+      followUpHtml,
+      textContent
+    )
     
-    console.log('✅ Follow-up email sent successfully:', result.messageId)
+    console.log('✅ Follow-up email sent successfully via Resend')
     
   } catch (error) {
     console.error('❌ Follow-up email failed:', error)
@@ -277,25 +169,8 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
   console.log('📧 Sending admin notification email for lead:', payload.leadName)
   
   try {
-    // Simple direct SMTP approach
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.zoho.in',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.ZOHO_SMTP_USER,
-        pass: process.env.ZOHO_SMTP_PASS
-      },
-      debug: false,
-      connectionTimeout: 30000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
-      tls: { rejectUnauthorized: false }
-    } as any)
-
+    // Use Resend API instead of SMTP
     const baseUrl = getBaseUrl()
-    const fromAddress = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-    const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
     // Get all admin users
     const adminUsers = await User.find({ role: 'admin' }).lean()
@@ -325,15 +200,16 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       </div>
     `
 
-    const result = await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      to: adminEmails,
-      subject: `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
-      html: adminHtml,
-      text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
-    })
+    const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
+
+    await sendEmailViaResend(
+      adminEmails,
+      `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
+      adminHtml,
+      textContent
+    )
     
-    console.log('✅ Admin notification email sent successfully:', result.messageId)
+    console.log('✅ Admin notification email sent successfully via Resend')
     
     // Log activity
     await Activity.create({
