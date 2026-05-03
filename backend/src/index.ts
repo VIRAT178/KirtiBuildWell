@@ -8,11 +8,7 @@ import propertyRoutes from './routes/properties'
 import leadRoutes from './routes/leads'
 import analyticsRoutes from './routes/analytics'
 import testZohoRoutes from './routes/test-zoho'
-<<<<<<< HEAD
 import testEmailRoutes from './routes/test-email'
-=======
-
->>>>>>> d20eb081cc3495bebd27997497afc23b1ffbdd44
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import { sanitizeBody } from './middleware/validation'
 import { startLeadFollowUpScheduler } from './schedulers/leadFollowUpScheduler'

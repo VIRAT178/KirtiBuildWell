@@ -169,6 +169,92 @@ export async function getLeads(req: Request, res: Response, next: NextFunction) 
   }
 }
 
+export async function deleteLead(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params
+
+    const lead = await Lead.findById(id)
+    if (!lead) {
+      return res.status(404).json({
+        success: false,
+        error: 'Lead not found'
+      })
+    }
+
+    // Log lead deletion activity before deletion
+    await Activity.create({
+      type: 'lead_deleted',
+      description: `Lead deleted: ${lead.name}`,
+      leadId: lead._id,
+      metadata: { 
+        leadName: lead.name, 
+        leadEmail: lead.email, 
+        leadPhone: lead.phone,
+        deletedAt: new Date()
+      }
+    })
+
+    // Delete the lead
+    await Lead.findByIdAndDelete(id)
+
+    return res.status(200).json({
+      success: true,
+      message: 'Lead deleted successfully'
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
+export async function deleteMultipleLeads(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { ids } = req.body as { ids?: string[] }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide valid lead IDs'
+      })
+    }
+
+    // Find leads to be deleted for logging
+    const leads = await Lead.find({ _id: { $in: ids } })
+    
+    if (leads.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'No leads found with provided IDs'
+      })
+    }
+
+    // Log deletion activities
+    for (const lead of leads) {
+      await Activity.create({
+        type: 'lead_deleted',
+        description: `Lead deleted: ${lead.name}`,
+        leadId: lead._id,
+        metadata: { 
+          leadName: lead.name, 
+          leadEmail: lead.email, 
+          leadPhone: lead.phone,
+          deletedAt: new Date()
+        }
+      })
+    }
+
+    // Delete the leads
+    const result = await Lead.deleteMany({ _id: { $in: ids } })
+
+    return res.status(200).json({
+      success: true,
+      message: `${result.deletedCount} leads deleted successfully`,
+      deletedCount: result.deletedCount
+    })
+  } catch (error) {
+    return next(error)
+  }
+}
+
 export async function updateLeadStatus(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = req.params

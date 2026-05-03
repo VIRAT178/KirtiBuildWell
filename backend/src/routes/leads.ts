@@ -1,5 +1,5 @@
 import express from 'express'
-import { createLead, getLeads, updateLeadStatus } from '../controllers/leadController'
+import { createLead, getLeads, updateLeadStatus, deleteLead, deleteMultipleLeads } from '../controllers/leadController'
 import { validateBody } from '../middleware/validation'
 import { rateLimit } from '../middleware/validation'
 import { authenticateToken, requireAdmin } from '../middleware/auth'
@@ -12,5 +12,7 @@ router.post('/', rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: 'Too man
 // Admin-only routes
 router.get('/', authenticateToken, requireAdmin, getLeads)
 router.patch('/:id/status', authenticateToken, requireAdmin, validateBody('leadStatus'), updateLeadStatus)
+router.delete('/:id', authenticateToken, requireAdmin, deleteLead)
+router.delete('/batch', authenticateToken, requireAdmin, deleteMultipleLeads)
 
 export default router
