@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer'
 const router = express.Router()
 
 // Email webhook endpoint to handle email delivery
-router.post('/email-webhook', async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     console.log('📧 Email webhook received:', {
       to: req.body.to,
