@@ -21,6 +21,14 @@ app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(sanitizeBody)
+app.get('/', (req, res) => {
+  res.send('KirtiBuildWell API is running 🚀');
+});
+
+// HEAD request fix
+app.head('/', (req, res) => {
+  res.status(200).end();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
