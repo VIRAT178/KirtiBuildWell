@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #050506;
+  --panel: rgba(20, 20, 22, 0.65);
+  --muted: #9ca3af;
+  --gold: #d4af37;
+  --gold-dim: rgba(212, 175, 55, 0.35);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(212, 175, 55, 0.08), transparent 55%),
+    linear-gradient(180deg, #050506 0%, #0a0a0c 45%, #050506 100%);
+}
+
+.glass-panel {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.lux-card {
+  background: linear-gradient(165deg, rgba(26, 26, 28, 0.95) 0%, rgba(12, 12, 14, 0.98) 100%);
+  border: 1px solid rgba(212, 175, 55, 0.14);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  border-radius: 1rem;
+}
+
+.gold-text {
+  color: var(--gold);
+}
+
+.gold-gradient-text {
+  background: linear-gradient(135deg, #e5c158 0%, #d4af37 45%, #a8860a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kenburns {
+  0% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-kenburns {
+  animation: kenburns 18s ease-out forwards;
+}
+
+/* subtle scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(212, 175, 55, 0.35) transparent;
+}
