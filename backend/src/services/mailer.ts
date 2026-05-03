@@ -145,14 +145,16 @@ async function sendEmailWithRetry(transporter: any, mailOptions: any, maxRetries
   throw lastError
 }
 
-// Fallback email service with multiple options
+// Fallback email service with multiple options including alternative services
 async function sendFallbackEmail(to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
   console.log('Attempting fallback email service...')
   
-  // Try multiple SMTP configurations
-  const fallbackConfigs = [
+  // Try multiple email services
+  const emailServices = [
+    // Try Zoho SMTP with different configurations
     {
       name: 'Zoho SMTP (port 465)',
+      type: 'smtp',
       config: {
         host: 'smtp.zoho.in',
         port: 465,
@@ -162,31 +164,15 @@ async function sendFallbackEmail(to: string, subject: string, htmlContent: strin
           pass: process.env.ZOHO_SMTP_PASS
         },
         debug: false,
-        connectionTimeout: 10000,
-        greetingTimeout: 8000,
-        socketTimeout: 8000,
+        connectionTimeout: 8000,
+        greetingTimeout: 6000,
+        socketTimeout: 6000,
         tls: { rejectUnauthorized: false }
       }
     },
     {
       name: 'Zoho SMTP (port 587)',
-      config: {
-        host: 'smtp.zoho.in',
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.ZOHO_SMTP_USER,
-          pass: process.env.ZOHO_SMTP_PASS
-        },
-        debug: false,
-        connectionTimeout: 10000,
-        greetingTimeout: 8000,
-        socketTimeout: 8000,
-        tls: { rejectUnauthorized: false }
-      }
-    },
-    {
-      name: 'Zoho SMTP (no TLS)',
+      type: 'smtp',
       config: {
         host: 'smtp.zoho.in',
         port: 587,
@@ -197,59 +183,209 @@ async function sendFallbackEmail(to: string, subject: string, htmlContent: strin
         },
         debug: false,
         connectionTimeout: 8000,
-        greetingTimeout: 5000,
-        socketTimeout: 5000
+        greetingTimeout: 6000,
+        socketTimeout: 6000,
+        tls: { rejectUnauthorized: false }
+      }
+    },
+    // Try Gmail SMTP (if configured)
+    {
+      name: 'Gmail SMTP',
+      type: 'smtp',
+      config: {
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.GMAIL_SMTP_USER,
+          pass: process.env.GMAIL_SMTP_PASS
+        },
+        debug: false,
+        connectionTimeout: 8000,
+        greetingTimeout: 6000,
+        socketTimeout: 6000,
+        tls: { rejectUnauthorized: false }
+      }
+    },
+    // Try SendGrid API (if configured)
+    {
+      name: 'SendGrid API',
+      type: 'api',
+      config: {
+        apiKey: process.env.SENDGRID_API_KEY
       }
     }
   ]
 
-  for (const fallback of fallbackConfigs) {
+  for (const service of emailServices) {
+    // Skip services that don't have credentials
+    if (service.type === 'smtp' && (!service.config.auth.user || !service.config.auth.pass)) {
+      console.log(`⏭️ Skipping ${service.name} - missing credentials`)
+      continue
+    }
+    if (service.type === 'api' && !service.config.apiKey) {
+      console.log(`⏭️ Skipping ${service.name} - missing API key`)
+      continue
+    }
+
     try {
-      console.log(`🔄 Trying ${fallback.name}...`)
+      console.log(`🔄 Trying ${service.name}...`)
       
-      const fallbackTransporter = nodemailer.createTransport(fallback.config as any)
+      if (service.type === 'smtp') {
+        await sendEmailWithSMTP(service, to, subject, htmlContent, textContent)
+      } else if (service.type === 'api') {
+        await sendEmailWithAPI(service, to, subject, htmlContent, textContent)
+      }
       
-      // Quick connection test
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('Connection test timeout')), 5000)
-        fallbackTransporter.verify((error: any) => {
-          clearTimeout(timeout)
-          if (error) {
-            reject(error)
-          } else {
-            resolve()
-          }
-        })
-      })
-      
-      // Send email
-      const emailPromise = fallbackTransporter.sendMail({
-        from: `KirtiBuildWell <${process.env.ZOHO_SMTP_USER}>`,
-        to,
-        subject,
-        html: htmlContent,
-        text: textContent
-      })
-      
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Email send timeout')), 15000)
-      })
-      
-      await Promise.race([emailPromise, timeoutPromise])
-      console.log(`✅ Email sent successfully using ${fallback.name} to:`, to)
+      console.log(`✅ Email sent successfully using ${service.name} to:`, to)
       return // Success, exit function
       
     } catch (error) {
-      console.error(`❌ ${fallback.name} failed:`, error)
-      continue // Try next configuration
+      console.error(`❌ ${service.name} failed:`, error)
+      continue // Try next service
     }
   }
   
-  // All SMTP attempts failed
-  console.error('❌ All SMTP configurations failed')
+  // All email services failed
+  console.error('❌ All email services failed')
   
-  // Store email for retry later (could implement a queue system)
+  // Store email for retry later
   await storeEmailForRetry(to, subject, htmlContent, textContent)
+}
+
+// Send email using SMTP
+async function sendEmailWithSMTP(service: any, to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const transporter = nodemailer.createTransport(service.config as any)
+  
+  // Quick connection test
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Connection test timeout')), 3000)
+    transporter.verify((error: any) => {
+      clearTimeout(timeout)
+      if (error) {
+        reject(error)
+      } else {
+        resolve()
+      }
+    })
+  })
+  
+  // Send email
+  const emailPromise = transporter.sendMail({
+    from: `KirtiBuildWell <${service.config.auth.user}>`,
+    to,
+    subject,
+    html: htmlContent,
+    text: textContent
+  })
+  
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Email send timeout')), 10000)
+  })
+  
+  await Promise.race([emailPromise, timeoutPromise])
+}
+
+// Send email using API (SendGrid example)
+async function sendEmailWithAPI(service: any, to: string, subject: string, htmlContent: string, textContent: string): Promise<void> {
+  // Try HTTP-based email services
+  const httpEmailServices = [
+    {
+      name: 'EmailJS HTTP Service',
+      url: 'https://api.emailjs.com/api/v1.0/email/send',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: {
+        service_id: process.env.EMAILJS_SERVICE_ID,
+        template_id: process.env.EMAILJS_TEMPLATE_ID,
+        user_id: process.env.EMAILJS_PUBLIC_KEY,
+        template_params: {
+          to_email: to,
+          subject: subject,
+          html_content: htmlContent,
+          text_content: textContent
+        }
+      }
+    },
+    {
+      name: 'Formspree Email Service',
+      url: 'https://formspree.io/f/' + process.env.FORMSPREE_FORM_ID,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: {
+        email: to,
+        subject: subject,
+        message: textContent,
+        html: htmlContent
+      }
+    }
+  ]
+
+  for (const emailService of httpEmailServices) {
+    // Skip if not configured
+    if (!emailService.url || emailService.url.includes('undefined')) {
+      continue
+    }
+
+    try {
+      console.log(`🌐 Trying ${emailService.name}...`)
+      
+      const response = await fetch(emailService.url, {
+        method: emailService.method,
+        headers: emailService.headers,
+        body: JSON.stringify(emailService.body)
+      })
+
+      if (response.ok) {
+        console.log(`✅ Email sent successfully using ${emailService.name} to:`, to)
+        return
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error(`❌ ${emailService.name} failed:`, error)
+      continue
+    }
+  }
+
+  // If all HTTP services fail, try a simple HTTP request to a webhook
+  try {
+    console.log('🌐 Trying webhook email service...')
+    
+    const webhookData = {
+      to,
+      subject,
+      htmlContent,
+      textContent,
+      timestamp: new Date().toISOString(),
+      source: 'KirtiBuildWell Email Service'
+    }
+
+    const webhookUrl = process.env.EMAIL_WEBHOOK_URL
+    if (webhookUrl) {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookData)
+      })
+
+      if (response.ok) {
+        console.log('✅ Email sent via webhook to:', to)
+        return
+      }
+    }
+  } catch (error) {
+    console.error('❌ Webhook email service failed:', error)
+  }
+
+  throw new Error('All API email services failed')
 }
 
 // Store failed emails for retry (simple in-memory storage for now)
