@@ -1,35 +1,64 @@
 import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
+
 import { connectDB } from './lib/mongo'
 import authRoutes from './routes/auth'
 import propertyRoutes from './routes/properties'
 import leadRoutes from './routes/leads'
 import analyticsRoutes from './routes/analytics'
 import testZohoRoutes from './routes/test-zoho'
+<<<<<<< HEAD
 import testEmailRoutes from './routes/test-email'
+=======
+
+>>>>>>> d20eb081cc3495bebd27997497afc23b1ffbdd44
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import { sanitizeBody } from './middleware/validation'
 import { startLeadFollowUpScheduler } from './schedulers/leadFollowUpScheduler'
-import { exchangeZohoAuthorizationCode } from './services/zoho'
 
 dotenv.config()
 
 const app = express()
 
-// Security middleware
+// ========================
+// 🔐 MIDDLEWARE
+// ========================
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
-app.use(express.urlencoded({ extended: true, limit: '10mb' }))
+app.use(express.urlencoded({ extended: true }))
 app.use(sanitizeBody)
 
-// Request logging middleware
+// ========================
+// 🧪 ROOT + HEALTH
+// ========================
+app.get('/', (req, res) => {
+  res.send('KirtiBuildWell API is running 🚀')
+})
+
+app.head('/', (req, res) => {
+  res.status(200).end()
+})
+
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API running',
+    time: new Date().toISOString()
+  })
+})
+
+// ========================
+// 🪵 REQUEST LOG
+// ========================
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl} - ${req.ip}`)
+  console.log(`${new Date().toISOString()} | ${req.method} ${req.url}`)
   next()
 })
 
-// API routes
+// ========================
+// 🔗 API ROUTES
+// ========================
 app.use('/api/auth', authRoutes)
 app.use('/api/properties', propertyRoutes)
 app.use('/api/leads', leadRoutes)
@@ -37,81 +66,94 @@ app.use('/api/analytics', analyticsRoutes)
 app.use('/api/test-zoho', testZohoRoutes)
 app.use('/api/test-email', testEmailRoutes)
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'KirtiBuildWell API is running',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  })
-})
+// ========================
+// 🔥 ZOHO OAUTH CALLBACK
+// ========================
 app.get('/auth/zoho/callback', async (req, res) => {
   try {
-    const code = req.query.code as string;
-    const redirectUri = req.query.redirect_uri as string || 'http://localhost:4000/auth/zoho/callback';
-
-    console.log("🔥 Zoho Authorization Code received:", code?.substring(0, 20) + "...");
+    const code = req.query.code as string
 
     if (!code) {
       return res.status(400).json({
         success: false,
-        error: "Authorization code is required"
-      });
+        error: "Authorization code missing"
+      })
     }
 
-    // Exchange the authorization code for tokens
-    const tokenData = await exchangeZohoAuthorizationCode(code, redirectUri);
+    console.log("🔥 AUTH CODE:", code.substring(0, 15) + "...")
 
-    res.json({
-      success: true,
-      message: "Tokens exchanged successfully",
-      data: {
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
-        expires_in: tokenData.expires_in,
-        api_domain: tokenData.api_domain,
-        token_type: tokenData.token_type
+    // ✅ EXACT MATCH with Zoho console
+    const REDIRECT_URI = "https://kirtibuildwell.onrender.com/auth/zoho/callback"
+
+    const response = await fetch("https://accounts.zoho.in/oauth/v2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded"
       },
-      instructions: {
-        refresh_token: "Update your .env file with ZOHO_REFRESH_TOKEN=" + tokenData.refresh_token,
-        note: "The refresh token can be used to get new access tokens without user authorization"
-      }
-    });
-  } catch (error) {
-    console.error("❌ Zoho OAuth callback error:", error);
-    
-    res.status(500).json({
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: process.env.ZOHO_CLIENT_ID!,
+        client_secret: process.env.ZOHO_CLIENT_SECRET!,
+        redirect_uri: REDIRECT_URI,
+        code: code
+      })
+    })
+
+    const data = await response.json()
+
+    console.log("📦 ZOHO RESPONSE:", data)
+
+    // ❌ Zoho error case
+    if (!data.access_token) {
+      return res.status(400).json({
+        success: false,
+        error: "Zoho token exchange failed",
+        zoho_error: data
+      })
+    }
+
+    // ✅ SUCCESS
+    return res.json({
+      success: true,
+      message: "🎉 Zoho connected successfully",
+      data: {
+        access_token: data.access_token,
+        refresh_token: data.refresh_token,
+        expires_in: data.expires_in
+      },
+      next_step: `Save this → ZOHO_REFRESH_TOKEN=${data.refresh_token}`
+    })
+
+  } catch (err: any) {
+    console.error("❌ OAUTH ERROR:", err)
+
+    return res.status(500).json({
       success: false,
-      error: "Failed to exchange authorization code",
-      details: error instanceof Error ? error.message : "Unknown error"
-    });
+      error: "OAuth failed",
+      details: err.message
+    })
   }
-});
+})
 
-// 404 handler
+// ========================
+// ❌ 404 + ERROR
+// ========================
 app.use(notFoundHandler)
-
-// Error handler (must be last)
 app.use(errorHandler)
 
+// ========================
+// 🚀 SERVER START
+// ========================
 const PORT = process.env.PORT || 4000
 
 connectDB()
   .then(() => {
     startLeadFollowUpScheduler()
-    const server = app.listen(PORT, () => {
-      console.log(`Backend running on http://localhost:${PORT}`)
-    })
-    server.on('error', (err: NodeJS.ErrnoException) => {
-      if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${PORT} is already in use. Stop the other process or set PORT in .env`)
-      } else {
-        console.error(err)
-      }
-      process.exit(1)
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Backend running on port ${PORT}`)
     })
   })
-  .catch((err) => {
-    console.error('Failed to connect to DB', err)
+  .catch(err => {
+    console.error("❌ DB connection failed", err)
   })
