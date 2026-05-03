@@ -38,21 +38,59 @@ function createTransporter() {
   console.log(` Creating SMTP transporter for ${user} on ${host}:${port}`)
 
   const transporter = nodemailer.createTransport({
+    service: 'zoho',
     host,
     port,
     secure: port === 465,
     auth: { user, pass },
-    debug: true, // Enable debug logging
-    logger: true // Enable logger
-  })
+    debug: process.env.NODE_ENV === 'development', // Enable debug logging only in development
+    logger: process.env.NODE_ENV === 'development', // Enable logger only in development
+    connectionTimeout: 30000, // 30 seconds connection timeout
+    greetingTimeout: 10000, // 10 seconds greeting timeout
+    socketTimeout: 20000, // 20 seconds socket timeout
+    maxConnections: 5,
+    maxMessages: 100,
+    rateDelta: 1000,
+    rateLimit: 5,
+    tls: {
+      rejectUnauthorized: false // Allow self-signed certificates in development
+    }
+  } as any)
 
   return transporter
+}
+
+// Verify transporter connection
+async function verifyTransporter(transporter: any): Promise<void> {
+  try {
+    await withTimeout(
+      transporter.verify(),
+      15000, // 15 seconds timeout for verification
+      'SMTP connection verification'
+    )
+    console.log('SMTP transporter verified successfully')
+  } catch (error) {
+    console.error('SMTP transporter verification failed:', error)
+    throw new Error(`SMTP connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+// Timeout wrapper function
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error(`${operation} timed out after ${timeoutMs}ms`)), timeoutMs)
+  })
+  
+  return Promise.race([promise, timeoutPromise])
 }
 
 export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): Promise<void> {
   const transporter = createTransporter()
   const fromAddress = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+
+  // Verify connection before sending
+  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -143,19 +181,26 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     </div>
   `
 
-  await transporter.sendMail({
-    from: `${fromName} <${fromAddress}>`,
-    to: payload.email,
-    subject: 'Thank you for your inquiry - KirtiBuildWell',
-    html: htmlContent,
-    text: `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
-  })
+  await withTimeout(
+    transporter.sendMail({
+      from: `${fromName} <${fromAddress}>`,
+      to: payload.email,
+      subject: 'Thank you for your inquiry - KirtiBuildWell',
+      html: htmlContent,
+      text: `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
+    }),
+    25000, // 25 seconds timeout for sending email
+    'Lead confirmation email'
+  )
 }
 
 export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<void> {
   const transporter = createTransporter()
   const fromAddress = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+
+  // Verify connection before sending
+  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
@@ -182,13 +227,17 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
     </div>
   `
 
-  await transporter.sendMail({
-    from: `${fromName} <${fromAddress}>`,
-    to: payload.email,
-    subject: 'Quick follow-up on your inquiry - KirtiBuildWell',
-    html: htmlContent,
-    text: `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
-  })
+  await withTimeout(
+    transporter.sendMail({
+      from: `${fromName} <${fromAddress}>`,
+      to: payload.email,
+      subject: 'Quick follow-up on your inquiry - KirtiBuildWell',
+      html: htmlContent,
+      text: `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
+    }),
+    25000, // 25 seconds timeout for sending email
+    'Lead follow-up email'
+  )
 }
 
 export async function sendAdminNotificationEmail(payload: AdminNotificationPayload): Promise<void> {
@@ -204,6 +253,9 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
     console.warn('No admin users found to send notification email')
     return
   }
+
+  // Verify connection before sending
+  await verifyTransporter(transporter)
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff;">
@@ -303,13 +355,17 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
     </div>
   `
 
-  await transporter.sendMail({
-    from: `${fromName} <${fromAddress}>`,
-    to: adminEmails,
-    subject: `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
-    html: htmlContent,
-    text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: http://localhost:3000/admin/leads/${payload.leadId}`
-  })
+  await withTimeout(
+    transporter.sendMail({
+      from: `${fromName} <${fromAddress}>`,
+      to: adminEmails,
+      subject: `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
+      html: htmlContent,
+      text: `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: http://localhost:3000/admin/leads/${payload.leadId}`
+    }),
+    25000, // 25 seconds timeout for sending email
+    'Admin notification email'
+  )
 
   // Log activity
   await Activity.create({

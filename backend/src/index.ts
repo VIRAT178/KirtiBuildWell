@@ -7,6 +7,7 @@ import propertyRoutes from './routes/properties'
 import leadRoutes from './routes/leads'
 import analyticsRoutes from './routes/analytics'
 import testZohoRoutes from './routes/test-zoho'
+import testEmailRoutes from './routes/test-email'
 import { errorHandler, notFoundHandler } from './middleware/errorHandler'
 import { sanitizeBody } from './middleware/validation'
 import { startLeadFollowUpScheduler } from './schedulers/leadFollowUpScheduler'
@@ -34,6 +35,7 @@ app.use('/api/properties', propertyRoutes)
 app.use('/api/leads', leadRoutes)
 app.use('/api/analytics', analyticsRoutes)
 app.use('/api/test-zoho', testZohoRoutes)
+app.use('/api/test-email', testEmailRoutes)
 
 // Health check endpoint
 app.get('/health', (req, res) => {

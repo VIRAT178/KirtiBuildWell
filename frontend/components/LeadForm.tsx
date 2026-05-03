@@ -32,6 +32,11 @@ export default function LeadForm({
     e.preventDefault()
     setStatus('loading')
     setErrorMsg(null)
+    
+    // Create abort controller for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 45000) // 45 second timeout
+    
     try {
       const messageBody =
         propertyContext != null && propertyContext.length > 0
@@ -43,12 +48,21 @@ export default function LeadForm({
         email: form.email.trim(),
         phone: form.phone.trim(),
         message: messageBody
+      }, {
+        signal: controller.signal,
+        timeout: 45000 // 45 second timeout
       })
+      
+      clearTimeout(timeoutId)
       setStatus('success')
       setForm({ name: '', email: '', phone: '', message: '' })
     } catch (err) {
+      clearTimeout(timeoutId)
       setStatus('error')
-      if (axios.isAxiosError(err) && err.response?.data?.error) {
+      
+      if (err.name === 'CanceledError' || err.code === 'ECONNABORTED') {
+        setErrorMsg('Request timed out. Please try again or call us directly.')
+      } else if (axios.isAxiosError(err) && err.response?.data?.error) {
         setErrorMsg(String(err.response.data.error))
       } else {
         setErrorMsg('Something went wrong. Please try again or call us directly.')
