@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
 export interface IActivity extends mongoose.Document {
-  type: 'lead_created' | 'lead_updated' | 'user_registered' | 'project_created' | 'project_updated' | 'crm_sync' | 'email_sent' | 'follow_up_sent'
+  type: 'lead_created' | 'lead_updated' | 'user_registered' | 'project_created' | 'project_updated' | 'crm_sync' | 'email_sent' | 'follow_up_sent'|'error'
   description: string
   userId?: mongoose.Types.ObjectId
   leadId?: mongoose.Types.ObjectId
