@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import axios from 'axios'
 import { motion } from 'framer-motion'
+import { getApiBaseUrl } from '../lib/api'
 
 export type LeadFormProps = {
   /** When set, appended to the message so CRM sees property context (slug IDs are not Mongo ObjectIds). */
@@ -22,7 +23,7 @@ export default function LeadForm({
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
 
   function onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }))

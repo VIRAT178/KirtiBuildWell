@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import axios from 'axios'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { getApiBaseUrl } from '../../../../lib/api'
 import { clearAuthToken, getAuthToken } from '../../../../lib/auth'
 
 type LeadStatus = 'new' | 'contacted' | 'closed'
@@ -45,7 +46,7 @@ export default function AdminLeadsPage() {
   const [selectedLeads, setSelectedLeads] = useState<Set<string>>(new Set())
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set())
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
 
   async function fetchLeads() {
     try {

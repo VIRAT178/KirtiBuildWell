@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import DashboardCard from '../../../../components/DashboardCard'
+import { getApiBaseUrl } from '../../../../lib/api'
 import { clearAuthToken, getAuthToken } from '../../../../lib/auth'
 
 type LeadStatus = 'new' | 'contacted' | 'closed'
@@ -26,7 +27,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
 
   useEffect(() => {
     async function load() {

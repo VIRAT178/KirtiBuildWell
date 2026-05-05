@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { BrandMark } from '../../../components/BrandMark'
+import { getApiBaseUrl } from '../../../lib/api'
 import { setAuthToken } from '../../../lib/auth'
 
 export default function AdminLoginPage() {
@@ -15,7 +16,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000'
+  const apiBase = getApiBaseUrl()
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
