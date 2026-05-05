@@ -1,21 +1,6 @@
 import './globals.css'
 import React from 'react'
-import { Inter, Playfair_Display } from 'next/font/google'
 import { generateMetadata } from '../lib/seo'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-  preload: true
-})
-
-const playfair = Playfair_Display({
-  subsets: ['latin'],
-  variable: '--font-display',
-  display: 'swap',
-  preload: true
-})
 
 export const metadata = generateMetadata({
   title: 'KirtiBuildWell | Luxury Real Estate in Lucknow',
@@ -27,11 +12,10 @@ export const metadata = generateMetadata({
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${playfair.variable}`}>
+    <html lang="en">
       <head>
         {/* Performance optimizations */}
         <link rel="preconnect" href="https://images.unsplash.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" />
         <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
         
         {/* Core Web Vitals optimizations */}
