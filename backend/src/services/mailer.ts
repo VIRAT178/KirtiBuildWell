@@ -156,26 +156,36 @@ async function sendEmailViaMailgun(to: string | string[], subject: string, htmlC
   }
 }
 
-// Unified send with SMTP first, then fallback to Mailgun if available
+// Unified send with Mailgun first, then fallback to SMTP if needed
 async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
   try {
+    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
+      return
+    }
+
     await sendEmailViaSMTP(to, subject, htmlContent, textContent)
     return
-  } catch (smtpErr: any) {
-    const errCode = smtpErr?.code || 'UNKNOWN'
-    console.warn('SMTP send failed, attempting Mailgun fallback:', errCode)
-    const apiKey = process.env.MAILGUN_API_KEY
-    if (!apiKey) {
-      throw smtpErr
+  } catch (primaryErr: any) {
+    const errCode = primaryErr?.code || 'UNKNOWN'
+    console.warn('Primary email transport failed, trying fallback:', errCode)
+
+    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+      try {
+        await sendEmailViaMailgun(to, subject, htmlContent, textContent)
+        return
+      } catch (mailgunErr: any) {
+        console.error('Mailgun send failed:', mailgunErr)
+        throw primaryErr
+      }
     }
 
     try {
-      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
+      await sendEmailViaSMTP(to, subject, htmlContent, textContent)
       return
-    } catch (mgErr: any) {
-      console.error('Mailgun fallback also failed:', mgErr)
-      // throw original smtpErr to preserve root cause if needed
-      throw smtpErr
+    } catch (smtpErr: any) {
+      console.error('SMTP fallback also failed:', smtpErr)
+      throw primaryErr
     }
   }
 }
@@ -225,7 +235,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     
     // consider using fallback
     
-    console.log('✅ Lead confirmation email sent successfully via SMTP')
+    console.log('✅ Lead confirmation email sent successfully')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
