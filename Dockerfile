@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY backend/ ./
 
-RUN npm ci && npm run build
+RUN npm install && npm run build
 
 EXPOSE 4000
 
