@@ -162,8 +162,9 @@ async function sendEmailWithFallback(to: string | string[], subject: string, htm
   try {
     await sendEmailViaSMTP(to, subject, htmlContent, textContent)
     return
-  } catch (smtpErr) {
-    console.warn('SMTP send failed, attempting SendGrid fallback:', smtpErr && smtpErr.code ? smtpErr.code : smtpErr)
+  } catch (smtpErr: any) {
+    const errCode = smtpErr?.code || 'UNKNOWN'
+    console.warn('SMTP send failed, attempting SendGrid fallback:', errCode)
     const apiKey = process.env.SENDGRID_API_KEY
     if (!apiKey) {
       throw smtpErr
@@ -172,7 +173,7 @@ async function sendEmailWithFallback(to: string | string[], subject: string, htm
     try {
       await sendEmailViaSendGrid(to, subject, htmlContent, textContent)
       return
-    } catch (sgErr) {
+    } catch (sgErr: any) {
       console.error('SendGrid fallback also failed:', sgErr)
       // throw original smtpErr to preserve root cause if needed
       throw smtpErr
