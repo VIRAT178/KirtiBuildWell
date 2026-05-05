@@ -2,17 +2,15 @@ import './globals.css'
 import React from 'react'
 import { generateMetadata } from '../lib/seo'
 {/* <meta name="google-site-verification" content="Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro" /> */}
-export const metadata = generateMetadata({
-  title: 'KirtiBuildWell | Luxury Real Estate in Lucknow',
-  description: 'Premium real estate developer in Lucknow offering luxury flats, apartments, and residential projects with modern amenities and excellent connectivity.',
-  keywords: ['luxury real estate', 'premium apartments', 'flats in Lucknow', 'apartments in Lucknow'],
-  image: '/images/og-image.jpg',
-  type: 'website', // ✅ comma add किया
+import type { Metadata } from "next";
 
+export const metadata: Metadata = {
+  title: "KirtiBuildWell | Luxury Real Estate in Lucknow",
+  description: "Premium real estate developer in Lucknow...",
   verification: {
     google: "Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro",
   },
-})
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
