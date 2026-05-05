@@ -156,37 +156,18 @@ async function sendEmailViaMailgun(to: string | string[], subject: string, htmlC
   }
 }
 
-// Unified send with Mailgun first, then fallback to SMTP if needed
+// Unified send with Mailgun as the required transport for lead emails
 async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+    throw new Error('Mailgun is not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN in the backend environment.')
+  }
+
   try {
-    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
-      return
-    }
-
-    await sendEmailViaSMTP(to, subject, htmlContent, textContent)
+    await sendEmailViaMailgun(to, subject, htmlContent, textContent)
     return
-  } catch (primaryErr: any) {
-    const errCode = primaryErr?.code || 'UNKNOWN'
-    console.warn('Primary email transport failed, trying fallback:', errCode)
-
-    if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-      try {
-        await sendEmailViaMailgun(to, subject, htmlContent, textContent)
-        return
-      } catch (mailgunErr: any) {
-        console.error('Mailgun send failed:', mailgunErr)
-        throw primaryErr
-      }
-    }
-
-    try {
-      await sendEmailViaSMTP(to, subject, htmlContent, textContent)
-      return
-    } catch (smtpErr: any) {
-      console.error('SMTP fallback also failed:', smtpErr)
-      throw primaryErr
-    }
+  } catch (mailgunErr: any) {
+    console.error('Mailgun send failed:', mailgunErr)
+    throw mailgunErr
   }
 }
 
@@ -233,9 +214,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
       textContent
     )
     
-    // consider using fallback
-    
-    console.log('✅ Lead confirmation email sent successfully')
+    console.log('✅ Lead confirmation email sent successfully via Mailgun')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
