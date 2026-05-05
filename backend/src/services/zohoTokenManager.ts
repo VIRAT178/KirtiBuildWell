@@ -106,6 +106,9 @@ class ZohoTokenManager {
         grant_type: 'refresh_token'
       })
 
+      console.log(`🔗 Token URL: ${tokenUrl}`)
+      console.log(`🔐 Using grant_type: refresh_token`)
+
       const response = await fetch(`${tokenUrl}?${params.toString()}`, {
         method: 'POST',
         headers: {
@@ -127,6 +130,16 @@ class ZohoTokenManager {
 
       if (tokenResponse.error) {
         const details = tokenResponse.error_description || tokenResponse.message || tokenResponse.error
+        
+        // Provide helpful diagnostics for common errors
+        if (tokenResponse.error === 'invalid_client') {
+          console.error('❌ INVALID_CLIENT ERROR - Your Zoho OAuth credentials are invalid:')
+          console.error('   • Refresh token may be expired or revoked')
+          console.error('   • Client ID or Client Secret may be incorrect')
+          console.error('   • Zoho application may have been deactivated')
+          console.error('   → Solution: Re-authorize the application in Zoho to get a new refresh token')
+        }
+        
         throw new Error(`Zoho token refresh error: ${tokenResponse.error} - ${details}`)
       }
 

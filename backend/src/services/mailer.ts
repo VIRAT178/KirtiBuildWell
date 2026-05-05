@@ -72,11 +72,18 @@ function createSMTPTransporter() {
       pass
     },
     debug: false,
-    connectionTimeout: 15000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
+    connectionTimeout: 30000,  // Increased from 15000
+    greetingTimeout: 15000,     // Increased from 10000
+    socketTimeout: 30000,       // Increased from 10000
+    pool: {
+      maxConnections: 1,
+      maxMessages: 1,
+      rateDelta: 1000,
+      rateLimit: 5
+    },
     tls: {
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      ciphers: 'SSLv3'
     }
   } as any)
 
@@ -107,13 +114,27 @@ async function sendEmailViaSMTP(to: string | string[], subject: string, htmlCont
       })
 
       console.log('✅ Email sent successfully via SMTP:', result && result.messageId)
+      transporter.close()
       return
-    } catch (error) {
+    } catch (error: any) {
       lastError = error
-      console.error(`❌ SMTP attempt ${attempt} failed:`, error)
+      const errorCode = error?.code || error?.command
+      const errorMsg = error?.message || 'Unknown error'
+      
+      console.error(`❌ SMTP attempt ${attempt} failed (${errorCode}):`, errorMsg)
+      
+      // Log detailed connection error info
+      if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNREFUSED') {
+        console.error(`⚠️  Connection error - may indicate firewall/DNS/host issue`)
+        console.error(`   Host: ${process.env.ZOHO_SMTP_HOST}:${process.env.ZOHO_SMTP_PORT}`)
+        console.error(`   Secure: ${process.env.ZOHO_SMTP_SECURE || 'true (default for 465)'}`)
+      }
+      
+      try { transporter.close() } catch (e) { /* ignore */ }
+      
       // small backoff before retrying
       if (attempt < maxAttempts) {
-        const backoff = 1000 * attempt
+        const backoff = 2000 * attempt
         console.log(`⏳ Retrying SMTP send in ${backoff}ms...`)
         await new Promise((r) => setTimeout(r, backoff))
       }
