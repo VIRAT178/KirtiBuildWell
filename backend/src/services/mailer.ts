@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import sgMail from '@sendgrid/mail'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -123,6 +124,62 @@ async function sendEmailViaSMTP(to: string | string[], subject: string, htmlCont
   throw lastError
 }
 
+// Send email via SendGrid API
+async function sendEmailViaSendGrid(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const apiKey = process.env.SENDGRID_API_KEY
+  if (!apiKey) {
+    throw new Error('SendGrid API key not configured')
+  }
+
+  try {
+    sgMail.setApiKey(apiKey)
+  } catch (e) {
+    // setApiKey may throw if invalid
+  }
+
+  const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
+  const fromName = process.env.SENDGRID_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+
+  const recipients = Array.isArray(to) ? to : [to]
+
+  // Send to each recipient to preserve personalization and avoid SendGrid batch nuances
+  for (const rcpt of recipients) {
+    const msg: any = {
+      to: rcpt,
+      from: { email: fromEmail, name: fromName },
+      subject,
+      text: textContent,
+      html: htmlContent
+    }
+
+    await sgMail.send(msg)
+    console.log('✅ Email sent via SendGrid to', rcpt)
+  }
+}
+
+// Unified send with SMTP first, then fallback to SendGrid if available
+async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  try {
+    await sendEmailViaSMTP(to, subject, htmlContent, textContent)
+    return
+  } catch (smtpErr) {
+    console.warn('SMTP send failed, attempting SendGrid fallback:', smtpErr && smtpErr.code ? smtpErr.code : smtpErr)
+    const apiKey = process.env.SENDGRID_API_KEY
+    if (!apiKey) {
+      throw smtpErr
+    }
+
+    try {
+      await sendEmailViaSendGrid(to, subject, htmlContent, textContent)
+      return
+    } catch (sgErr) {
+      console.error('SendGrid fallback also failed:', sgErr)
+      // throw original smtpErr to preserve root cause if needed
+      throw smtpErr
+    }
+  }
+}
+
 
 
 // Simple email content generator for fallback
@@ -159,12 +216,14 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    await sendEmailViaSMTP(
+    await sendEmailWithFallback(
       payload.email,
       'Thank you for your inquiry - KirtiBuildWell',
       htmlContent,
       textContent
     )
+    
+    // consider using fallback
     
     console.log('✅ Lead confirmation email sent successfully via SMTP')
     
@@ -198,7 +257,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 
     const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
-    await sendEmailViaSMTP(
+    await sendEmailWithFallback(
       payload.email,
       'Quick follow-up on your inquiry - KirtiBuildWell',
       followUpHtml,
@@ -250,7 +309,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
 
-    await sendEmailViaSMTP(
+    await sendEmailWithFallback(
       adminEmails,
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       adminHtml,
