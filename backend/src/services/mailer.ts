@@ -10,6 +10,13 @@ type ConfirmationPayload = {
   propertyTitle?: string
 }
 
+type MailPayload = {
+  to: string | string[]
+  subject: string
+  htmlContent: string
+  textContent: string
+}
+
 // Mailgun HTTP send fallback using mailgun.js
 async function sendViaMailgun(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
   const apiKey = process.env.MAILGUN_API_KEY
@@ -40,6 +47,47 @@ async function sendViaMailgun(to: string | string[], subject: string, htmlConten
 
   const resp = await mgClient.messages.create(domain, data)
   return resp && (resp.id || resp.message) ? (resp.id || resp.message) : 'mailgun-sent'
+}
+
+// Postmark API send fallback using the official HTTP API
+async function sendViaPostmark(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
+  const serverToken = process.env.POSTMARK_SERVER_TOKEN
+  if (!serverToken) throw new Error('Postmark server token missing')
+
+  const fromEmail = process.env.POSTMARK_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || 'noreply@kirtibuildwell.com'
+  const fromName = process.env.POSTMARK_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+  const messageStream = process.env.POSTMARK_MESSAGE_STREAM || 'outbound'
+  const recipients = Array.isArray(to) ? to : [to]
+
+  const responses: string[] = []
+
+  for (const recipient of recipients) {
+    const response = await fetch('https://api.postmarkapp.com/email', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': serverToken
+      },
+      body: JSON.stringify({
+        From: `${fromName} <${fromEmail}>`,
+        To: recipient,
+        Subject: subject,
+        HtmlBody: htmlContent,
+        TextBody: textContent,
+        MessageStream: messageStream
+      })
+    })
+
+    const responseText = await response.text()
+    if (!response.ok) {
+      throw new Error(`Postmark error ${response.status}: ${responseText}`)
+    }
+
+    responses.push(responseText)
+  }
+
+  return responses.length > 1 ? `postmark-sent-${responses.length}` : 'postmark-sent'
 }
 
 type FollowUpPayload = {
@@ -171,22 +219,34 @@ export async function sendEmailViaSMTP(to: string | string[], subject: string, h
     }
   }
 
-      // all attempts failed
-      console.error('❌ All SMTP attempts failed')
+  console.error('❌ All SMTP attempts failed')
 
-      // Try Mailgun fallback if configured
-      if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-        try {
-          console.log('🔁 Attempting Mailgun fallback send...')
-          const mgResult = await sendViaMailgun(to, subject, htmlContent, textContent)
-          console.log('✅ Mailgun fallback succeeded:', mgResult)
-          return mgResult || 'sent-via-mailgun'
-        } catch (mgErr) {
-          console.error('❌ Mailgun fallback failed:', mgErr)
-        }
-      }
+  const fallbackPayload: MailPayload = { to, subject, htmlContent, textContent }
 
-      throw lastError
+  if (process.env.POSTMARK_SERVER_TOKEN) {
+    try {
+      console.log('🔁 Attempting Postmark fallback send...')
+      const postmarkResult = await sendViaPostmark(fallbackPayload.to, fallbackPayload.subject, fallbackPayload.htmlContent, fallbackPayload.textContent)
+      console.log('✅ Postmark fallback succeeded:', postmarkResult)
+      return postmarkResult
+    } catch (postmarkErr) {
+      console.error('❌ Postmark fallback failed:', postmarkErr)
+    }
+  }
+
+  // Try Mailgun fallback if configured
+  if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    try {
+      console.log('🔁 Attempting Mailgun fallback send...')
+      const mgResult = await sendViaMailgun(fallbackPayload.to, fallbackPayload.subject, fallbackPayload.htmlContent, fallbackPayload.textContent)
+      console.log('✅ Mailgun fallback succeeded:', mgResult)
+      return mgResult || 'sent-via-mailgun'
+    } catch (mgErr) {
+      console.error('❌ Mailgun fallback failed:', mgErr)
+    }
+  }
+
+  throw lastError
 }
 
 
