@@ -1,5 +1,5 @@
 import express from 'express'
-import { sendEmailViaSMTP } from '../services/mailer'
+import { sendEmailViaBrevo } from '../services/mailer'
 
 const router = express.Router()
 
@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
       })
     }
 
-    const messageId = await sendEmailViaSMTP(
+    const messageId = await sendEmailViaBrevo(
       to,
       subject,
       htmlContent || textContent,

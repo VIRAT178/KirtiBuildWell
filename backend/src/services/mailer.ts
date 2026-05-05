@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -17,77 +16,53 @@ type MailPayload = {
   textContent: string
 }
 
-// Mailgun HTTP send fallback using mailgun.js
-async function sendViaMailgun(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
-  const apiKey = process.env.MAILGUN_API_KEY
-  const domain = process.env.MAILGUN_DOMAIN
-  if (!apiKey || !domain) throw new Error('Mailgun configuration missing')
-
-  // Lazy-require to avoid TypeScript import/type issues
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const formData = require('form-data')
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Mailgun = require('mailgun.js')
-
-  const mailgun = new Mailgun(formData)
-  const mgClient = mailgun.client({ username: 'api', key: apiKey })
-
-  const recipients = Array.isArray(to) ? to : [to]
-  const fromEmail = process.env.MAILGUN_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || `noreply@${domain}`
-  const fromName = process.env.MAILGUN_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-  const from = `${fromName} <${fromEmail}>`
-
-  const data = {
-    from,
-    to: recipients.join(','),
-    subject,
-    text: textContent,
-    html: htmlContent
-  }
-
-  const resp = await mgClient.messages.create(domain, data)
-  return resp && (resp.id || resp.message) ? (resp.id || resp.message) : 'mailgun-sent'
+type BrevoRecipient = {
+  email: string
+  name?: string
 }
 
-// Postmark API send fallback using the official HTTP API
-async function sendViaPostmark(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
-  const serverToken = process.env.POSTMARK_SERVER_TOKEN
-  if (!serverToken) throw new Error('Postmark server token missing')
+// Brevo HTTP send using the transactional email API
+async function sendViaBrevo(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
+  const apiKey = process.env.BREVO_API_KEY
+  const apiUrl = process.env.BREVO_API_URL || 'https://api.brevo.com/v3/smtp/email'
 
-  const fromEmail = process.env.POSTMARK_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || 'noreply@kirtibuildwell.com'
-  const fromName = process.env.POSTMARK_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-  const messageStream = process.env.POSTMARK_MESSAGE_STREAM || 'outbound'
+  if (!apiKey) throw new Error('Brevo API key missing (BREVO_API_KEY)')
+
+  const fromEmail = process.env.BREVO_FROM_EMAIL || 'noreply@kirtibuildwell.com'
+  const fromName = process.env.BREVO_FROM_NAME || 'KirtiBuildWell'
+  const replyTo = process.env.BREVO_REPLY_TO || process.env.BREVO_FROM_EMAIL || fromEmail
   const recipients = Array.isArray(to) ? to : [to]
 
-  const responses: string[] = []
-
-  for (const recipient of recipients) {
-    const response = await fetch('https://api.postmarkapp.com/email', {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': serverToken
-      },
-      body: JSON.stringify({
-        From: `${fromName} <${fromEmail}>`,
-        To: recipient,
-        Subject: subject,
-        HtmlBody: htmlContent,
-        TextBody: textContent,
-        MessageStream: messageStream
-      })
-    })
-
-    const responseText = await response.text()
-    if (!response.ok) {
-      throw new Error(`Postmark error ${response.status}: ${responseText}`)
-    }
-
-    responses.push(responseText)
+  const payload = {
+    sender: {
+      name: fromName,
+      email: fromEmail
+    },
+    replyTo: {
+      email: replyTo
+    },
+    to: recipients.map((email): BrevoRecipient => ({ email })),
+    subject,
+    htmlContent,
+    textContent
   }
 
-  return responses.length > 1 ? `postmark-sent-${responses.length}` : 'postmark-sent'
+  const response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': apiKey,
+      accept: 'application/json'
+    },
+    body: JSON.stringify(payload)
+  })
+
+  const responseText = await response.text()
+  if (!response.ok) {
+    throw new Error(`Brevo error ${response.status}: ${responseText}`)
+  }
+
+  return responseText || 'brevo-sent'
 }
 
 type FollowUpPayload = {
@@ -105,148 +80,14 @@ type AdminNotificationPayload = {
   leadId: string
 }
 
-type SMTPConfig = {
-  host: string
-  port: number
-  secure: boolean
-}
-
 // Get base URL for email links
 function getBaseUrl(): string {
   return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
 }
 
-function getSMTPConfig(): SMTPConfig {
-  const host = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
-  const port = Number(process.env.ZOHO_SMTP_PORT || 465)
-  const secureEnv = process.env.ZOHO_SMTP_SECURE
-
-  return {
-    host,
-    port,
-    secure: secureEnv ? secureEnv === 'true' : port === 465
-  }
-}
-
-// Simple SMTP transporter creation
-function createSMTPTransporter() {
-  const user = process.env.ZOHO_SMTP_USER
-  const pass = process.env.ZOHO_SMTP_PASS
-  const { host, port, secure } = getSMTPConfig()
-
-  if (!user || !pass) {
-    console.error('SMTP credentials missing:', { user: !!user, pass: !!pass })
-    throw new Error('Zoho SMTP credentials are missing')
-  }
-
-  console.log(` Creating SMTP transporter for ${user} via ${host}:${port} (secure=${secure})`)
-
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: {
-      user,
-      pass
-    },
-    debug: false,
-    connectionTimeout: 30000,  // Increased from 15000
-    greetingTimeout: 15000,     // Increased from 10000
-    socketTimeout: 30000,       // Increased from 10000
-    pool: {
-      maxConnections: 1,
-      maxMessages: 1,
-      rateDelta: 1000,
-      rateLimit: 5
-    },
-    tls: {
-      rejectUnauthorized: false,
-      ciphers: 'SSLv3'
-    }
-  } as any)
-
-  return transporter
-}
-
-// Simple SMTP email sending function
-export async function sendEmailViaSMTP(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
-  const fromEmail = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-  const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-
-  const recipients = Array.isArray(to) ? to : [to]
-
-  const maxAttempts = 2
-  let lastError: any = null
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const transporter = createSMTPTransporter()
-    console.log(`📧 Sending email via SMTP (attempt ${attempt}/${maxAttempts}) to:`, recipients)
-
-    try {
-      const result = await transporter.sendMail({
-        from: `${fromName} <${fromEmail}>`,
-        to: recipients,
-        subject: subject,
-        html: htmlContent,
-        text: textContent
-      })
-
-      console.log('✅ Email sent successfully via SMTP:', result && result.messageId)
-      transporter.close()
-      return result.messageId || 'sent'
-    } catch (error: any) {
-      lastError = error
-      const errorCode = error?.code || error?.command
-      const errorMsg = error?.message || 'Unknown error'
-      
-      console.error(`❌ SMTP attempt ${attempt} failed (${errorCode}):`, errorMsg)
-      
-      // Log detailed connection error info
-      if (errorCode === 'ETIMEDOUT' || errorCode === 'ECONNREFUSED') {
-        console.error(`⚠️  Connection error - may indicate firewall/DNS/host issue`)
-        console.error(`   Host: ${process.env.ZOHO_SMTP_HOST}:${process.env.ZOHO_SMTP_PORT}`)
-        console.error(`   Secure: ${process.env.ZOHO_SMTP_SECURE || 'true (default for 465)'}`)
-      }
-      
-      try { transporter.close() } catch (e) { /* ignore */ }
-      
-      // small backoff before retrying
-      if (attempt < maxAttempts) {
-        const backoff = 2000 * attempt
-        console.log(`⏳ Retrying SMTP send in ${backoff}ms...`)
-        await new Promise((r) => setTimeout(r, backoff))
-      }
-    }
-  }
-
-  console.error('❌ All SMTP attempts failed')
-
-  const fallbackPayload: MailPayload = { to, subject, htmlContent, textContent }
-
-  if (process.env.POSTMARK_SERVER_TOKEN) {
-    try {
-      console.log('🔁 Attempting Postmark fallback send...')
-      const postmarkResult = await sendViaPostmark(fallbackPayload.to, fallbackPayload.subject, fallbackPayload.htmlContent, fallbackPayload.textContent)
-      console.log('✅ Postmark fallback succeeded:', postmarkResult)
-      return postmarkResult
-    } catch (postmarkErr) {
-      console.error('❌ Postmark fallback failed:', postmarkErr)
-    }
-  }
-
-  // Try Mailgun fallback if configured
-  if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-    try {
-      console.log('🔁 Attempting Mailgun fallback send...')
-      const mgResult = await sendViaMailgun(fallbackPayload.to, fallbackPayload.subject, fallbackPayload.htmlContent, fallbackPayload.textContent)
-      console.log('✅ Mailgun fallback succeeded:', mgResult)
-      return mgResult || 'sent-via-mailgun'
-    } catch (mgErr) {
-      console.error('❌ Mailgun fallback failed:', mgErr)
-    }
-  }
-
-  throw lastError
+// Unified send via Brevo (no SMTP)
+export async function sendEmailViaBrevo(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
+  return sendViaBrevo(to, subject, htmlContent, textContent)
 }
 
 
@@ -285,7 +126,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    await sendEmailViaSMTP(
+    await sendEmailViaBrevo(
       payload.email,
       'Thank you for your inquiry - KirtiBuildWell',
       htmlContent,
@@ -324,7 +165,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 
     const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-8881115002 or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
-    await sendEmailViaSMTP(
+    await sendEmailViaBrevo(
       payload.email,
       'Quick follow-up on your inquiry - KirtiBuildWell',
       followUpHtml,
@@ -376,7 +217,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
 
-    await sendEmailViaSMTP(
+    await sendEmailViaBrevo(
       adminEmails,
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       adminHtml,
