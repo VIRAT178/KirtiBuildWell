@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { sendLeadConfirmationEmail } from '../services/mailer'
+import { sendEmailViaSMTP } from '../services/mailer'
 
 const router = Router()
 
@@ -16,13 +16,18 @@ router.post('/test', async (req, res) => {
 
     console.log(`Testing email service with ${email}`)
     
-    await sendLeadConfirmationEmail({
-      name,
+    await sendEmailViaSMTP(
       email,
-      phone: '+91-XXXXXXXXXX',
-      message: 'This is a test email from KirtiBuildWell email service.',
-      propertyTitle: 'Test Project'
-    })
+      'KirtiBuildWell email test',
+      `
+        <div style="font-family: Arial, sans-serif; padding: 24px;">
+          <h2 style="margin: 0 0 12px;">KirtiBuildWell Email Test</h2>
+          <p style="margin: 0 0 8px;">Hello ${name},</p>
+          <p style="margin: 0;">This is a test email from the KirtiBuildWell backend.</p>
+        </div>
+      `,
+      `Hello ${name},\n\nThis is a test email from the KirtiBuildWell backend.`
+    )
 
     res.json({
       success: true,

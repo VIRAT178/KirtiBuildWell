@@ -1,5 +1,5 @@
 import express from 'express'
-import nodemailer from 'nodemailer'
+import { sendEmailViaSMTP } from '../services/mailer'
 
 const router = express.Router()
 
@@ -20,40 +20,18 @@ router.post('/', async (req, res) => {
       })
     }
 
-    // Create simple email transporter
-    const smtpHost = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
-    const smtpPort = Number(process.env.ZOHO_SMTP_PORT || 465)
-    const smtpSecure = process.env.ZOHO_SMTP_SECURE
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: smtpPort,
-      secure: smtpSecure ? smtpSecure === 'true' : smtpPort === 465,
-      auth: {
-        user: process.env.ZOHO_SMTP_USER,
-        pass: process.env.ZOHO_SMTP_PASS
-      },
-      debug: false,
-      connectionTimeout: 15000,
-      greetingTimeout: 10000,
-      socketTimeout: 10000,
-      tls: { rejectUnauthorized: false }
-    } as any)
-
-    // Send email
-    const result = await transporter.sendMail({
-      from: `KirtiBuildWell <${process.env.ZOHO_SMTP_USER}>`,
+    const messageId = await sendEmailViaSMTP(
       to,
       subject,
-      html: htmlContent || textContent,
-      text: textContent
-    })
+      htmlContent || textContent,
+      textContent
+    )
 
-    console.log('✅ Email sent via webhook:', result.messageId)
+    console.log('✅ Email sent via webhook:', messageId)
     
     res.status(200).json({ 
       success: true, 
-      messageId: result.messageId,
+      messageId,
       timestamp: new Date().toISOString()
     })
 

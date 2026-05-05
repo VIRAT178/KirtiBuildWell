@@ -1,6 +1,4 @@
 import nodemailer from 'nodemailer'
-import Mailgun from 'mailgun.js'
-import FormData from 'form-data'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -91,7 +89,7 @@ function createSMTPTransporter() {
 }
 
 // Simple SMTP email sending function
-async function sendEmailViaSMTP(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+export async function sendEmailViaSMTP(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
   const fromEmail = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
@@ -115,7 +113,7 @@ async function sendEmailViaSMTP(to: string | string[], subject: string, htmlCont
 
       console.log('✅ Email sent successfully via SMTP:', result && result.messageId)
       transporter.close()
-      return
+      return result.messageId || 'sent'
     } catch (error: any) {
       lastError = error
       const errorCode = error?.code || error?.command
@@ -144,83 +142,6 @@ async function sendEmailViaSMTP(to: string | string[], subject: string, htmlCont
   // all attempts failed
   console.error('❌ All SMTP attempts failed')
   throw lastError
-}
-
-// Send email via Mailgun API
-async function sendEmailViaMailgun(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
-  const apiKey = process.env.MAILGUN_API_KEY
-  const domain = process.env.MAILGUN_DOMAIN
-
-  if (!apiKey || !domain) {
-    throw new Error('Mailgun API key or domain not configured')
-  }
-
-  const fromEmail = process.env.MAILGUN_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-  const fromName = process.env.MAILGUN_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
-
-  const recipients = Array.isArray(to) ? to : [to]
-  const mailgun = new Mailgun(FormData)
-  const mg = mailgun.client({ username: 'api', key: apiKey })
-
-  console.log(`📧 Sending email via Mailgun domain ${domain} to:`, recipients)
-
-  // Send to each recipient
-  for (const rcpt of recipients) {
-    const msg = {
-      from: `${fromName} <${fromEmail}>`,
-      to: rcpt,
-      subject,
-      text: textContent,
-      html: htmlContent
-    }
-
-    try {
-      await mg.messages.create(domain, msg)
-      console.log('✅ Email sent via Mailgun to', rcpt)
-    } catch (error: any) {
-      const details = error?.details || error?.message || 'Unknown Mailgun error'
-      const status = error?.status
-
-      if (status === 403 && String(details).toLowerCase().includes('free accounts are for test purposes only')) {
-        throw new Error(
-          'Mailgun sandbox restriction: add recipient to Authorized Recipients in Mailgun, or upgrade/add a custom verified sending domain.'
-        )
-      }
-
-      throw error
-    }
-  }
-}
-
-// Unified send with Mailgun as the primary transport.
-// SMTP is not attempted automatically because outbound SMTP is unreliable in the deployment environment.
-async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<'sent' | 'skipped'> {
-  let lastError: any = null
-
-  // Try Mailgun first if configured
-  if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-    try {
-      console.log('🔄 Attempting to send via Mailgun...')
-      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
-      return 'sent'
-    } catch (mailgunErr: any) {
-      console.error('⚠️ Mailgun send failed:', mailgunErr)
-      lastError = mailgunErr
-      if (mailgunErr?.status === 403 || (mailgunErr?.message && mailgunErr.message.includes('sandbox'))) {
-        console.log('📝 Mailgun sandbox restriction detected; email delivery skipped to avoid blocked SMTP retries.')
-        return 'skipped'
-      }
-
-      throw mailgunErr
-    }
-  }
-
-  // If we get here, Mailgun was not configured or failed unexpectedly.
-  if (lastError) {
-    throw new Error(`Mailgun email delivery failed: ${lastError.message}`)
-  }
-
-  throw new Error('No email delivery method configured (Mailgun)')
 }
 
 
@@ -259,14 +180,14 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    const deliveryStatus = await sendEmailWithFallback(
+    await sendEmailViaSMTP(
       payload.email,
       'Thank you for your inquiry - KirtiBuildWell',
       htmlContent,
       textContent
     )
     
-    console.log(deliveryStatus === 'sent' ? '✅ Lead confirmation email sent successfully' : '📝 Lead confirmation email skipped')
+    console.log('✅ Lead confirmation email sent successfully')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
@@ -298,14 +219,14 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 
     const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
-    const deliveryStatus = await sendEmailWithFallback(
+    await sendEmailViaSMTP(
       payload.email,
       'Quick follow-up on your inquiry - KirtiBuildWell',
       followUpHtml,
       textContent
     )
     
-    console.log(deliveryStatus === 'sent' ? '✅ Follow-up email sent successfully' : '📝 Follow-up email skipped')
+    console.log('✅ Follow-up email sent successfully')
     
   } catch (error) {
     console.error('❌ Follow-up email failed:', error)
@@ -350,14 +271,14 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
 
-    const deliveryStatus = await sendEmailWithFallback(
+    await sendEmailViaSMTP(
       adminEmails,
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       adminHtml,
       textContent
     )
     
-    console.log(deliveryStatus === 'sent' ? '✅ Admin notification email sent successfully' : '📝 Admin notification email skipped')
+    console.log('✅ Admin notification email sent successfully')
     
     // Log activity
     await Activity.create({
