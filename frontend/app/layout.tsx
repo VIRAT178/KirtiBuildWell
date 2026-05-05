@@ -7,9 +7,10 @@ export const metadata = generateMetadata({
   description: 'Premium real estate developer in Lucknow offering luxury flats, apartments, and residential projects with modern amenities and excellent connectivity.',
   keywords: ['luxury real estate', 'premium apartments', 'flats in Lucknow', 'apartments in Lucknow'],
   image: '/images/og-image.jpg',
-  type: 'website'
+  type: 'website', // ✅ comma add किया
+
   verification: {
-    google: "Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro", 
+    google: "Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro",
   },
 })
 
