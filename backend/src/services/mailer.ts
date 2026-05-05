@@ -141,6 +141,8 @@ async function sendEmailViaMailgun(to: string | string[], subject: string, htmlC
   const mailgun = new Mailgun(FormData)
   const mg = mailgun.client({ username: 'api', key: apiKey })
 
+  console.log(`📧 Sending email via Mailgun domain ${domain} to:`, recipients)
+
   // Send to each recipient
   for (const rcpt of recipients) {
     const msg = {
@@ -151,24 +153,67 @@ async function sendEmailViaMailgun(to: string | string[], subject: string, htmlC
       html: htmlContent
     }
 
-    await mg.messages.create(domain, msg)
-    console.log('✅ Email sent via Mailgun to', rcpt)
+    try {
+      await mg.messages.create(domain, msg)
+      console.log('✅ Email sent via Mailgun to', rcpt)
+    } catch (error: any) {
+      const details = error?.details || error?.message || 'Unknown Mailgun error'
+      const status = error?.status
+
+      if (status === 403 && String(details).toLowerCase().includes('free accounts are for test purposes only')) {
+        throw new Error(
+          'Mailgun sandbox restriction: add recipient to Authorized Recipients in Mailgun, or upgrade/add a custom verified sending domain.'
+        )
+      }
+
+      throw error
+    }
   }
 }
 
-// Unified send with Mailgun as the required transport for lead emails
+// Unified send with Mailgun as primary and SMTP as fallback
 async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
-  if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
-    throw new Error('Mailgun is not configured. Set MAILGUN_API_KEY and MAILGUN_DOMAIN in the backend environment.')
+  let lastError: any = null
+
+  // Try Mailgun first if configured
+  if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+    try {
+      console.log('🔄 Attempting to send via Mailgun...')
+      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
+      return
+    } catch (mailgunErr: any) {
+      console.error('⚠️ Mailgun send failed:', mailgunErr)
+      lastError = mailgunErr
+      
+      // If it's a sandbox/authorization error, try SMTP
+      if (mailgunErr?.status === 403 || (mailgunErr?.message && mailgunErr.message.includes('sandbox'))) {
+        console.log('🔄 Mailgun sandbox/auth issue detected, falling back to SMTP...')
+      } else if (!process.env.ZOHO_SMTP_USER || !process.env.ZOHO_SMTP_PASS) {
+        // If SMTP isn't configured, throw Mailgun error
+        throw mailgunErr
+      }
+    }
   }
 
-  try {
-    await sendEmailViaMailgun(to, subject, htmlContent, textContent)
-    return
-  } catch (mailgunErr: any) {
-    console.error('Mailgun send failed:', mailgunErr)
-    throw mailgunErr
+  // Try SMTP as fallback or if Mailgun not configured
+  if (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASS) {
+    try {
+      console.log('🔄 Attempting to send via SMTP...')
+      await sendEmailViaSMTP(to, subject, htmlContent, textContent)
+      console.log('✅ Email sent successfully via SMTP fallback')
+      return
+    } catch (smtpErr: any) {
+      console.error('⚠️ SMTP send failed:', smtpErr)
+      lastError = smtpErr
+    }
   }
+
+  // If we get here, both methods failed
+  if (lastError) {
+    throw new Error(`All email delivery methods failed: ${lastError.message}`)
+  }
+
+  throw new Error('No email delivery method configured (Mailgun or SMTP)')
 }
 
 
@@ -214,7 +259,7 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
       textContent
     )
     
-    console.log('✅ Lead confirmation email sent successfully via Mailgun')
+    console.log('✅ Lead confirmation email sent successfully')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
@@ -253,7 +298,7 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
       textContent
     )
     
-    console.log('✅ Follow-up email sent successfully via SMTP')
+    console.log('✅ Follow-up email sent successfully')
     
   } catch (error) {
     console.error('❌ Follow-up email failed:', error)
@@ -305,7 +350,7 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       textContent
     )
     
-    console.log('✅ Admin notification email sent successfully via SMTP')
+    console.log('✅ Admin notification email sent successfully')
     
     // Log activity
     await Activity.create({

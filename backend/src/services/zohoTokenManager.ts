@@ -12,6 +12,9 @@ interface RefreshTokenResponse {
   expires_in: number
   api_domain: string
   token_type: string
+  error?: string
+  error_description?: string
+  message?: string
 }
 
 class ZohoTokenManager {
@@ -120,10 +123,21 @@ class ZohoTokenManager {
       }
 
       const tokenResponse = await response.json() as RefreshTokenResponse
+      console.log('📦 Token response received:', JSON.stringify(tokenResponse, null, 2))
+
+      if (tokenResponse.error) {
+        const details = tokenResponse.error_description || tokenResponse.message || tokenResponse.error
+        throw new Error(`Zoho token refresh error: ${tokenResponse.error} - ${details}`)
+      }
 
       // Validate response
       if (!tokenResponse.access_token) {
-        throw new Error('Zoho token response did not include access_token')
+        console.error('❌ Missing access_token in response:', {
+          response: JSON.stringify(tokenResponse),
+          status: response.status,
+          keys: Object.keys(tokenResponse)
+        })
+        throw new Error(`Zoho token response did not include access_token. Response keys: ${Object.keys(tokenResponse).join(', ')}`)
       }
 
       if (!tokenResponse.expires_in) {
