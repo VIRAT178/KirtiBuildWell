@@ -187,14 +187,24 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
   try {
     const baseUrl = getBaseUrl()
 
-    // Get all admin users
-    const adminUsers = await User.find({ role: 'admin' }).lean()
-    const adminEmails = adminUsers.map(user => user.email)
+    const configuredAdminEmail = process.env.ADMIN_NOTIFICATION_EMAIL?.trim()
+
+    // Prefer the explicit Zoho Mail inbox for admin notifications.
+    // Fall back to admin users only if the env var is not set.
+    let adminEmails: string[] = []
+    if (configuredAdminEmail) {
+      adminEmails = [configuredAdminEmail]
+    } else {
+      const adminUsers = await User.find({ role: 'admin' }).lean()
+      adminEmails = adminUsers.map(user => user.email)
+    }
 
     if (adminEmails.length === 0) {
       console.warn('No admin users found to send notification email')
       return
     }
+
+    console.log('📨 Admin notification recipients:', adminEmails)
 
     // Simple admin notification HTML
     const adminHtml = `
