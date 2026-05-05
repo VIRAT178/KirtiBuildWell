@@ -433,7 +433,7 @@ const AboutContent = () => {
                     <div>
                       <h3 className="font-display text-2xl font-semibold text-gold mb-6">Get in Touch</h3>
                       <p className="text-white/80 mb-4 text-lg">📧 info@kirtibuildwell.com</p>
-                      <p className="text-white/80 mb-4 text-lg">📞 +91-XXXXXXXXXX</p>
+                      <p className="text-white/80 mb-4 text-lg">📞 +91-8881115002</p>
                       <p className="text-white/80 text-lg">🌐 www.kirtibuildwell.com</p>
                       <div className="mt-8 flex justify-center gap-4">
                         <Link

@@ -32,7 +32,7 @@ export default function ContactPage() {
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wider text-white/40">Contact</dt>
-              <dd className="mt-1 text-white/80">📧 info@kirtibuildwell.com | 📞 +91-XXXXXXXXXX</dd>
+              <dd className="mt-1 text-white/80">📧 info@kirtibuildwell.com | 📞 +91-8881115002</dd>
             </div>
           </dl>
 

@@ -27,7 +27,7 @@ export default function Footer() {
               <p>Meera Complex, 12, Pahad Nagar Tekariya</p>
               <p>Lucknow, Selhu Mau, Uttar Pradesh 226303</p>
               <p className="mt-2">📧 info@kirtibuildwell.com</p>
-              <p>📞 +91-XXXXXXXXXX</p>
+              <p>📞 +91-8881115002</p>
             </div>
           </motion.div>
           <div>

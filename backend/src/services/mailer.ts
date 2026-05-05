@@ -162,7 +162,7 @@ function generateSimpleConfirmationEmail(payload: ConfirmationPayload): string {
         </p>
         <div style="background-color: #e9ecef; padding: 20px; border-radius: 4px; text-align: center; margin-top: 30px;">
           <p style="color: #2c3e50; margin: 0; font-size: 16px; font-weight: 600;">Need Immediate Assistance?</p>
-          <p style="margin: 10px 0 0; color: #2c3e50; font-size: 14px;">Call us at: <strong>+91-XXXXXXXXXX</strong></p>
+          <p style="margin: 10px 0 0; color: #2c3e50; font-size: 14px;">Call us at: <strong>+91-8881115002</strong></p>
         </div>
       </div>
       <div style="background-color: #34495e; padding: 20px; text-align: center;">
@@ -211,13 +211,13 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
           <p style="color: #666; line-height: 1.6;">Dear ${payload.name},</p>
           <p style="color: #666; line-height: 1.6;">We wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.</p>
           <p style="text-align: center; margin-top: 20px;">
-            <strong>Call us at +91-XXXXXXXXXX</strong>
+            <strong>Call us at +91-8881115002</strong>
           </p>
         </div>
       </div>
     `
 
-    const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
+    const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-8881115002 or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
     await sendEmailViaSMTP(
       payload.email,

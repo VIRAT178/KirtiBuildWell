@@ -162,7 +162,7 @@ export function generateRealEstateStructuredData(project: {
         addressCountry: 'IN',
         streetAddress: 'Meera Complex, 12, Pahad Nagar Tekariya, Selhu Mau',
       },
-      telephone: '+91-XXXXXXXXXX',
+      telephone: '+91-8881115002',
       email: 'info@kirtibuildwell.com',
     },
   }
@@ -186,7 +186,7 @@ export function generateOrganizationStructuredData() {
       streetAddress: 'Meera Complex, 12, Pahad Nagar Tekariya, Selhu Mau',
       postalCode: '226303',
     },
-    telephone: '+91-XXXXXXXXXX',
+    telephone: '+91-8881115002',
     email: 'info@kirtibuildwell.com',
     sameAs: [
       'https://www.facebook.com/kirtibuildwell',
@@ -195,7 +195,7 @@ export function generateOrganizationStructuredData() {
     ],
     contactPoint: {
       '@type': 'ContactPoint',
-      telephone: '+91-XXXXXXXXXX',
+      telephone: '+91-8881115002',
       contactType: 'sales',
       availableLanguage: ['English', 'Hindi'],
     },
@@ -246,7 +246,7 @@ export function generateLocalBusinessStructuredData() {
     name: COMPANY_NAME,
     description: COMPANY_DESCRIPTION,
     url: SITE_URL,
-    telephone: '+91-XXXXXXXXXX',
+    telephone: '+91-8881115002',
     address: {
       '@type': 'PostalAddress',
       addressLocality: CITY,
