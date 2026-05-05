@@ -25,36 +25,54 @@ type AdminNotificationPayload = {
   leadId: string
 }
 
+type SMTPConfig = {
+  host: string
+  port: number
+  secure: boolean
+}
+
 // Get base URL for email links
 function getBaseUrl(): string {
   return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
+}
+
+function getSMTPConfig(): SMTPConfig {
+  const host = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
+  const port = Number(process.env.ZOHO_SMTP_PORT || 465)
+  const secureEnv = process.env.ZOHO_SMTP_SECURE
+
+  return {
+    host,
+    port,
+    secure: secureEnv ? secureEnv === 'true' : port === 465
+  }
 }
 
 // Simple SMTP transporter creation
 function createSMTPTransporter() {
   const user = process.env.ZOHO_SMTP_USER
   const pass = process.env.ZOHO_SMTP_PASS
+  const { host, port, secure } = getSMTPConfig()
 
   if (!user || !pass) {
     console.error('SMTP credentials missing:', { user: !!user, pass: !!pass })
     throw new Error('Zoho SMTP credentials are missing')
   }
 
-  console.log(` Creating SMTP transporter for ${user}`)
+  console.log(` Creating SMTP transporter for ${user} via ${host}:${port} (secure=${secure})`)
 
-  // Create simple, reliable SMTP transporter
   const transporter = nodemailer.createTransport({
-    host: 'smtp.zoho.in',
-    port: 587,
-    secure: false, // STARTTLS
+    host,
+    port,
+    secure,
     auth: {
       user,
       pass
     },
     debug: false,
-    connectionTimeout: 60000, // 60 seconds
-    greetingTimeout: 30000,   // 30 seconds
-    socketTimeout: 30000,     // 30 seconds
+    connectionTimeout: 15000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     tls: {
       rejectUnauthorized: false
     }
@@ -65,27 +83,44 @@ function createSMTPTransporter() {
 
 // Simple SMTP email sending function
 async function sendEmailViaSMTP(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
-  const transporter = createSMTPTransporter()
-  const fromEmail = process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
+  const fromEmail = process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
   const fromName = process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
-  console.log('📧 Sending email via SMTP...')
+  const recipients = Array.isArray(to) ? to : [to]
 
-  try {
-    const result = await transporter.sendMail({
-      from: `${fromName} <${fromEmail}>`,
-      to: Array.isArray(to) ? to : [to],
-      subject: subject,
-      html: htmlContent,
-      text: textContent
-    })
+  const maxAttempts = 2
+  let lastError: any = null
 
-    console.log('✅ Email sent successfully via SMTP:', result.messageId)
-    
-  } catch (error) {
-    console.error('❌ SMTP email failed:', error)
-    throw error
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const transporter = createSMTPTransporter()
+    console.log(`📧 Sending email via SMTP (attempt ${attempt}/${maxAttempts}) to:`, recipients)
+
+    try {
+      const result = await transporter.sendMail({
+        from: `${fromName} <${fromEmail}>`,
+        to: recipients,
+        subject: subject,
+        html: htmlContent,
+        text: textContent
+      })
+
+      console.log('✅ Email sent successfully via SMTP:', result && result.messageId)
+      return
+    } catch (error) {
+      lastError = error
+      console.error(`❌ SMTP attempt ${attempt} failed:`, error)
+      // small backoff before retrying
+      if (attempt < maxAttempts) {
+        const backoff = 1000 * attempt
+        console.log(`⏳ Retrying SMTP send in ${backoff}ms...`)
+        await new Promise((r) => setTimeout(r, backoff))
+      }
+    }
   }
+
+  // all attempts failed
+  console.error('❌ All SMTP attempts failed')
+  throw lastError
 }
 
 
@@ -121,7 +156,6 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
   console.log('📧 Sending lead confirmation email to:', payload.email)
   
   try {
-    // Use Resend API instead of SMTP
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
@@ -145,7 +179,6 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
   console.log('📧 Sending follow-up email to:', payload.email)
   
   try {
-    // Use Resend API instead of SMTP
     const followUpHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
@@ -185,7 +218,6 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
   console.log('📧 Sending admin notification email for lead:', payload.leadName)
   
   try {
-    // Use Resend API instead of SMTP
     const baseUrl = getBaseUrl()
 
     // Get all admin users

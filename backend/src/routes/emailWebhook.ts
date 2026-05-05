@@ -21,10 +21,14 @@ router.post('/', async (req, res) => {
     }
 
     // Create simple email transporter
+    const smtpHost = process.env.ZOHO_SMTP_HOST || 'smtp.zoho.in'
+    const smtpPort = Number(process.env.ZOHO_SMTP_PORT || 465)
+    const smtpSecure = process.env.ZOHO_SMTP_SECURE
+
     const transporter = nodemailer.createTransport({
-      host: 'smtp.zoho.in',
-      port: 465,
-      secure: true,
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpSecure ? smtpSecure === 'true' : smtpPort === 465,
       auth: {
         user: process.env.ZOHO_SMTP_USER,
         pass: process.env.ZOHO_SMTP_PASS

@@ -75,64 +75,64 @@ export async function createLead(req: Request, res: Response, next: NextFunction
       })
     }
 
-    // Send confirmation email to lead
-    try {
-      await sendLeadConfirmationEmail({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        phone: phone.trim(),
-        message: message.trim(),
-        propertyTitle
-      })
-      lead.confirmationEmailSentAt = new Date()
-      await lead.save()
-      
-      // Log email sent
-      await Activity.create({
-        type: 'email_sent',
-        description: `Confirmation email sent to lead: ${lead.name}`,
-        leadId: lead._id,
-        status: 'success'
-      })
-    } catch (error) {
-      // Non-blocking email failure: lead is already persisted.
-      console.warn('Confirmation email failed', error)
-      warnings.push('Confirmation email failed')
-      
-      // Log failed email
-      await Activity.create({
-        type: 'email_sent',
-        description: `Confirmation email failed for lead: ${lead.name}`,
-        leadId: lead._id,
-        status: 'failed',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
+    // Send confirmation email to lead in background (non-blocking)
+    void (async () => {
+      try {
+        await sendLeadConfirmationEmail({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          message: message.trim(),
+          propertyTitle
+        })
 
-    // Send admin notification email
-    try {
-      await sendAdminNotificationEmail({
-        leadName: name.trim(),
-        leadEmail: email.trim().toLowerCase(),
-        leadPhone: phone.trim(),
-        leadMessage: message.trim(),
-        propertyTitle,
-        leadId: lead._id.toString()
-      })
-    } catch (error) {
-      // Non-blocking admin notification failure
-      console.warn('Admin notification email failed', error)
-      warnings.push('Admin notification failed')
-      
-      // Log failed admin notification
-      await Activity.create({
-        type: 'email_sent',
-        description: `Admin notification failed for lead: ${lead.name}`,
-        leadId: lead._id,
-        status: 'failed',
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      })
-    }
+        try {
+          lead.confirmationEmailSentAt = new Date()
+          await lead.save()
+        } catch (saveErr) {
+          console.warn('Failed to update lead.confirmationEmailSentAt', saveErr)
+        }
+
+        await Activity.create({
+          type: 'email_sent',
+          description: `Confirmation email sent to lead: ${lead.name}`,
+          leadId: lead._id,
+          status: 'success'
+        })
+      } catch (error) {
+        console.warn('Background: Confirmation email failed', error)
+        await Activity.create({
+          type: 'email_sent',
+          description: `Confirmation email failed for lead: ${lead.name}`,
+          leadId: lead._id,
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    })()
+
+    // Send admin notification email in background (non-blocking)
+    void (async () => {
+      try {
+        await sendAdminNotificationEmail({
+          leadName: name.trim(),
+          leadEmail: email.trim().toLowerCase(),
+          leadPhone: phone.trim(),
+          leadMessage: message.trim(),
+          propertyTitle,
+          leadId: lead._id.toString()
+        })
+      } catch (error) {
+        console.warn('Background: Admin notification email failed', error)
+        await Activity.create({
+          type: 'email_sent',
+          description: `Admin notification failed for lead: ${lead.name}`,
+          leadId: lead._id,
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    })()
 
     return res.status(201).json({
       success: true,
