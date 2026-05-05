@@ -10,6 +10,38 @@ type ConfirmationPayload = {
   propertyTitle?: string
 }
 
+// Mailgun HTTP send fallback using mailgun.js
+async function sendViaMailgun(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
+  const apiKey = process.env.MAILGUN_API_KEY
+  const domain = process.env.MAILGUN_DOMAIN
+  if (!apiKey || !domain) throw new Error('Mailgun configuration missing')
+
+  // Lazy-require to avoid TypeScript import/type issues
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const formData = require('form-data')
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const Mailgun = require('mailgun.js')
+
+  const mailgun = new Mailgun(formData)
+  const mgClient = mailgun.client({ username: 'api', key: apiKey })
+
+  const recipients = Array.isArray(to) ? to : [to]
+  const fromEmail = process.env.MAILGUN_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || `noreply@${domain}`
+  const fromName = process.env.MAILGUN_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+  const from = `${fromName} <${fromEmail}>`
+
+  const data = {
+    from,
+    to: recipients.join(','),
+    subject,
+    text: textContent,
+    html: htmlContent
+  }
+
+  const resp = await mgClient.messages.create(domain, data)
+  return resp && (resp.id || resp.message) ? (resp.id || resp.message) : 'mailgun-sent'
+}
+
 type FollowUpPayload = {
   name: string
   email: string
@@ -139,9 +171,22 @@ export async function sendEmailViaSMTP(to: string | string[], subject: string, h
     }
   }
 
-  // all attempts failed
-  console.error('❌ All SMTP attempts failed')
-  throw lastError
+      // all attempts failed
+      console.error('❌ All SMTP attempts failed')
+
+      // Try Mailgun fallback if configured
+      if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
+        try {
+          console.log('🔁 Attempting Mailgun fallback send...')
+          const mgResult = await sendViaMailgun(to, subject, htmlContent, textContent)
+          console.log('✅ Mailgun fallback succeeded:', mgResult)
+          return mgResult || 'sent-via-mailgun'
+        } catch (mgErr) {
+          console.error('❌ Mailgun fallback failed:', mgErr)
+        }
+      }
+
+      throw lastError
 }
 
 
