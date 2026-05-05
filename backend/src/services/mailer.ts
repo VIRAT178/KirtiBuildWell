@@ -192,8 +192,9 @@ async function sendEmailViaMailgun(to: string | string[], subject: string, htmlC
   }
 }
 
-// Unified send with Mailgun as primary and SMTP as fallback
-async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+// Unified send with Mailgun as the primary transport.
+// SMTP is not attempted automatically because outbound SMTP is unreliable in the deployment environment.
+async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<'sent' | 'skipped'> {
   let lastError: any = null
 
   // Try Mailgun first if configured
@@ -201,40 +202,25 @@ async function sendEmailWithFallback(to: string | string[], subject: string, htm
     try {
       console.log('🔄 Attempting to send via Mailgun...')
       await sendEmailViaMailgun(to, subject, htmlContent, textContent)
-      return
+      return 'sent'
     } catch (mailgunErr: any) {
       console.error('⚠️ Mailgun send failed:', mailgunErr)
       lastError = mailgunErr
-      
-      // If it's a sandbox/authorization error, try SMTP
       if (mailgunErr?.status === 403 || (mailgunErr?.message && mailgunErr.message.includes('sandbox'))) {
-        console.log('🔄 Mailgun sandbox/auth issue detected, falling back to SMTP...')
-      } else if (!process.env.ZOHO_SMTP_USER || !process.env.ZOHO_SMTP_PASS) {
-        // If SMTP isn't configured, throw Mailgun error
-        throw mailgunErr
+        console.log('📝 Mailgun sandbox restriction detected; email delivery skipped to avoid blocked SMTP retries.')
+        return 'skipped'
       }
+
+      throw mailgunErr
     }
   }
 
-  // Try SMTP as fallback or if Mailgun not configured
-  if (process.env.ZOHO_SMTP_USER && process.env.ZOHO_SMTP_PASS) {
-    try {
-      console.log('🔄 Attempting to send via SMTP...')
-      await sendEmailViaSMTP(to, subject, htmlContent, textContent)
-      console.log('✅ Email sent successfully via SMTP fallback')
-      return
-    } catch (smtpErr: any) {
-      console.error('⚠️ SMTP send failed:', smtpErr)
-      lastError = smtpErr
-    }
-  }
-
-  // If we get here, both methods failed
+  // If we get here, Mailgun was not configured or failed unexpectedly.
   if (lastError) {
-    throw new Error(`All email delivery methods failed: ${lastError.message}`)
+    throw new Error(`Mailgun email delivery failed: ${lastError.message}`)
   }
 
-  throw new Error('No email delivery method configured (Mailgun or SMTP)')
+  throw new Error('No email delivery method configured (Mailgun)')
 }
 
 
@@ -273,14 +259,14 @@ export async function sendLeadConfirmationEmail(payload: ConfirmationPayload): P
     const htmlContent = generateSimpleConfirmationEmail(payload)
     const textContent = `Hi ${payload.name},\n\nThank you for contacting KirtiBuildWell. Our team will get back to you shortly.\n\nRegards,\nKirtiBuildWell Team`
     
-    await sendEmailWithFallback(
+    const deliveryStatus = await sendEmailWithFallback(
       payload.email,
       'Thank you for your inquiry - KirtiBuildWell',
       htmlContent,
       textContent
     )
     
-    console.log('✅ Lead confirmation email sent successfully')
+    console.log(deliveryStatus === 'sent' ? '✅ Lead confirmation email sent successfully' : '📝 Lead confirmation email skipped')
     
   } catch (error) {
     console.error('❌ Lead confirmation email failed:', error)
@@ -312,14 +298,14 @@ export async function sendLeadFollowUpEmail(payload: FollowUpPayload): Promise<v
 
     const textContent = `Hi ${payload.name},\n\nWe wanted to follow up regarding your property inquiry. If you would like, we can schedule a quick call and share matching project options.\n\nCall us at +91-XXXXXXXXXX or reply to this email to schedule a convenient time.\n\nRegards,\nKirtiBuildWell Team`
 
-    await sendEmailWithFallback(
+    const deliveryStatus = await sendEmailWithFallback(
       payload.email,
       'Quick follow-up on your inquiry - KirtiBuildWell',
       followUpHtml,
       textContent
     )
     
-    console.log('✅ Follow-up email sent successfully')
+    console.log(deliveryStatus === 'sent' ? '✅ Follow-up email sent successfully' : '📝 Follow-up email skipped')
     
   } catch (error) {
     console.error('❌ Follow-up email failed:', error)
@@ -364,14 +350,14 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const textContent = `New Lead Alert!\n\nName: ${payload.leadName}\nEmail: ${payload.leadEmail}\nPhone: ${payload.leadPhone}\n${payload.propertyTitle ? `Project: ${payload.propertyTitle}\n` : ''}${payload.leadMessage ? `Message: "${payload.leadMessage}"\n\n` : ''}View details: ${baseUrl}/admin/leads/${payload.leadId}`
 
-    await sendEmailWithFallback(
+    const deliveryStatus = await sendEmailWithFallback(
       adminEmails,
       `🔥 New Lead Alert: ${payload.leadName} - KirtiBuildWell`,
       adminHtml,
       textContent
     )
     
-    console.log('✅ Admin notification email sent successfully')
+    console.log(deliveryStatus === 'sent' ? '✅ Admin notification email sent successfully' : '📝 Admin notification email skipped')
     
     // Log activity
     await Activity.create({
