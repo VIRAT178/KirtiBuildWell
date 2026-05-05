@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
-import sgMail from '@sendgrid/mail'
+import Mailgun from 'mailgun.js'
+import FormData from 'form-data'
 import { User } from '../models/User'
 import { Activity } from '../models/Activity'
 
@@ -124,57 +125,55 @@ async function sendEmailViaSMTP(to: string | string[], subject: string, htmlCont
   throw lastError
 }
 
-// Send email via SendGrid API
-async function sendEmailViaSendGrid(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
-  const apiKey = process.env.SENDGRID_API_KEY
-  if (!apiKey) {
-    throw new Error('SendGrid API key not configured')
+// Send email via Mailgun API
+async function sendEmailViaMailgun(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
+  const apiKey = process.env.MAILGUN_API_KEY
+  const domain = process.env.MAILGUN_DOMAIN
+
+  if (!apiKey || !domain) {
+    throw new Error('Mailgun API key or domain not configured')
   }
 
-  try {
-    sgMail.setApiKey(apiKey)
-  } catch (e) {
-    // setApiKey may throw if invalid
-  }
-
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
-  const fromName = process.env.SENDGRID_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
+  const fromEmail = process.env.MAILGUN_FROM_EMAIL || process.env.ZOHO_SMTP_FROM_EMAIL || process.env.ZOHO_SMTP_USER || 'info@kirtibuildwell.com'
+  const fromName = process.env.MAILGUN_FROM_NAME || process.env.ZOHO_SMTP_FROM_NAME || 'KirtiBuildWell'
 
   const recipients = Array.isArray(to) ? to : [to]
+  const mailgun = new Mailgun(FormData)
+  const mg = mailgun.client({ username: 'api', key: apiKey })
 
-  // Send to each recipient to preserve personalization and avoid SendGrid batch nuances
+  // Send to each recipient
   for (const rcpt of recipients) {
-    const msg: any = {
+    const msg = {
+      from: `${fromName} <${fromEmail}>`,
       to: rcpt,
-      from: { email: fromEmail, name: fromName },
       subject,
       text: textContent,
       html: htmlContent
     }
 
-    await sgMail.send(msg)
-    console.log('✅ Email sent via SendGrid to', rcpt)
+    await mg.messages.create(domain, msg)
+    console.log('✅ Email sent via Mailgun to', rcpt)
   }
 }
 
-// Unified send with SMTP first, then fallback to SendGrid if available
+// Unified send with SMTP first, then fallback to Mailgun if available
 async function sendEmailWithFallback(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<void> {
   try {
     await sendEmailViaSMTP(to, subject, htmlContent, textContent)
     return
   } catch (smtpErr: any) {
     const errCode = smtpErr?.code || 'UNKNOWN'
-    console.warn('SMTP send failed, attempting SendGrid fallback:', errCode)
-    const apiKey = process.env.SENDGRID_API_KEY
+    console.warn('SMTP send failed, attempting Mailgun fallback:', errCode)
+    const apiKey = process.env.MAILGUN_API_KEY
     if (!apiKey) {
       throw smtpErr
     }
 
     try {
-      await sendEmailViaSendGrid(to, subject, htmlContent, textContent)
+      await sendEmailViaMailgun(to, subject, htmlContent, textContent)
       return
-    } catch (sgErr: any) {
-      console.error('SendGrid fallback also failed:', sgErr)
+    } catch (mgErr: any) {
+      console.error('Mailgun fallback also failed:', mgErr)
       // throw original smtpErr to preserve root cause if needed
       throw smtpErr
     }
