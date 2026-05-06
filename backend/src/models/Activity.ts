@@ -1,7 +1,7 @@
 import mongoose from 'mongoose'
 
 export interface IActivity extends mongoose.Document {
-  type: 'lead_created' | 'lead_updated' | 'lead_deleted' | 'user_registered' | 'project_created' | 'project_updated' | 'crm_sync' | 'email_sent' | 'follow_up_sent' | 'error' | 'login' | 'logout'
+  type: 'lead_created' | 'lead_updated' | 'lead_deleted' | 'user_registered' | 'project_created' | 'project_updated' | 'project_deleted' | 'crm_sync' | 'email_sent' | 'follow_up_sent' | 'error' | 'login' | 'logout'
   description: string
   userId?: mongoose.Types.ObjectId
   leadId?: mongoose.Types.ObjectId
@@ -17,7 +17,7 @@ const ActivitySchema = new mongoose.Schema<IActivity>({
   type: {
     type: String,
     required: [true, 'Activity type is required'],
-    enum: ['lead_created', 'lead_updated', 'lead_deleted', 'user_registered', 'project_created', 'project_updated', 'crm_sync', 'email_sent', 'follow_up_sent', 'error', 'login', 'logout']
+    enum: ['lead_created', 'lead_updated', 'lead_deleted', 'user_registered', 'project_created', 'project_updated', 'project_deleted', 'crm_sync', 'email_sent', 'follow_up_sent', 'error', 'login', 'logout']
   },
   description: {
     type: String,

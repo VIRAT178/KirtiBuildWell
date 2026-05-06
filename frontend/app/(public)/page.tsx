@@ -1,11 +1,44 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import PropertyCard from '../../components/PropertyCard'
-import { properties } from '../../data/properties'
+import { properties as seedProperties } from '../../data/properties'
+import { getApiBaseUrl } from '../../lib/api'
 import { generateRealEstateStructuredData, generateOrganizationStructuredData, generateLocalBusinessStructuredData } from '../../lib/seo'
+
+type ProjectRecord = {
+  _id: string
+  title: string
+  location: string
+  price: number
+  priceLabel?: string
+  excerpt?: string
+  description: string
+  images: string[]
+  amenities: string[]
+}
+
+function formatPriceLabel(priceCr: number) {
+  if (!Number.isFinite(priceCr) || priceCr <= 0) return '₹0 Cr'
+  return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
+}
+
+function mapProject(project: ProjectRecord) {
+  const priceCr = Number(project.price) || 0
+  return {
+    id: project._id,
+    title: project.title,
+    location: project.location,
+    price: project.priceLabel?.trim() || formatPriceLabel(priceCr),
+    priceCr,
+    images: project.images ?? [],
+    excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
+    description: project.description,
+    amenities: project.amenities ?? []
+  }
+}
 
 const testimonials = [
   {
@@ -25,9 +58,35 @@ const testimonials = [
   }
 ]
 
-const featured = properties.slice(0, 3)
-
 export default function HomePage() {
+  const [projects, setProjects] = useState(seedProperties)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadProjects() {
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/properties`, { cache: 'no-store' })
+        if (!response.ok) throw new Error('Failed to load projects')
+        const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord[] }
+        const nextProjects = Array.isArray(payload.data) ? payload.data.map(mapProject) : []
+        if (active && nextProjects.length > 0) {
+          setProjects(nextProjects)
+        }
+      } catch {
+        // Keep the seed inventory when the API is unavailable.
+      }
+    }
+
+    void loadProjects()
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const featured = projects.slice(0, 3)
+
   // Generate structured data for SEO
   const organizationData = generateOrganizationStructuredData()
   const localBusinessData = generateLocalBusinessStructuredData()
@@ -70,11 +129,7 @@ export default function HomePage() {
       <section className="relative -mt-[72px] min-h-[92vh] overflow-hidden pt-[72px]">
         <div className="absolute inset-0">
           <div
-            className="absolute inset-0 scale-105 animate-kenburns bg-cover bg-center"
-            style={{
-              backgroundImage:
-                'url(https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1920&q=80)'
-            }}
+            className="absolute inset-0 scale-105 animate-kenburns bg-[url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=1920&q=80')] bg-cover bg-center"
           />
           <video
             className="absolute inset-0 h-full w-full object-cover opacity-40 mix-blend-overlay"

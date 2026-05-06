@@ -58,6 +58,18 @@ export const validationSchemas = {
       type: 'number',
       min: 0
     },
+    priceLabel: {
+      required: false,
+      type: 'string',
+      maxLength: 50,
+      trim: true
+    },
+    excerpt: {
+      required: false,
+      type: 'string',
+      maxLength: 250,
+      trim: true
+    },
     description: {
       required: true,
       type: 'string',
@@ -69,7 +81,7 @@ export const validationSchemas = {
       required: false,
       type: 'array',
       itemType: 'string',
-      pattern: /^https?:\/\//
+      pattern: /^(https?:\/\/|data:image\/)/
     },
     amenities: {
       required: false,

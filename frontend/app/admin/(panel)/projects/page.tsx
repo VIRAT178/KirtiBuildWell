@@ -2,66 +2,76 @@
 
 import React, { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import axios from 'axios'
+import { useRouter } from 'next/navigation'
 import type { Property } from '../../../../data/properties'
-import { properties as seedProperties } from '../../../../data/properties'
+import { clearAuthToken } from '../../../../lib/auth'
+import { createProject as createProjectApi, deleteProject as deleteProjectApi, fetchProjects, updateProject as updateProjectApi, type ProjectApiItem } from '../../../../lib/api'
 
-const STORAGE_KEY = 'kbw_admin_projects_v1'
-
-function slugify(title: string) {
-  return title
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
+function formatPriceLabel(priceCr: number) {
+  if (!Number.isFinite(priceCr) || priceCr <= 0) return '₹0 Cr'
+  return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
 }
 
-function loadStored(): Property[] | null {
-  if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Property[]
-    if (!Array.isArray(parsed)) return null
-    return parsed
-  } catch {
-    return null
+function mapProject(project: ProjectApiItem): Property {
+  const priceCr = Number(project.price) || 0
+  return {
+    id: project._id,
+    title: project.title,
+    location: project.location,
+    price: project.priceLabel?.trim() || formatPriceLabel(priceCr),
+    priceCr,
+    images: project.images ?? [],
+    excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
+    description: project.description,
+    amenities: project.amenities ?? []
   }
 }
 
-function persist(list: Property[]) {
-  if (typeof window === 'undefined') return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
-}
-
 export default function AdminProjectsPage() {
+  const router = useRouter()
   const [projects, setProjects] = useState<Property[]>([])
-  const [hydrated, setHydrated] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<Property>>({})
   const [uploadPreview, setUploadPreview] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const stored = loadStored()
-    setProjects(stored ?? seedProperties)
-    setHydrated(true)
-  }, [])
+    async function loadProjects() {
+      try {
+        setLoading(true)
+        setError(null)
+        const items = await fetchProjects()
+        setProjects(items.map(mapProject))
+      } catch (err) {
+        const status = axios.isAxiosError(err) ? err.response?.status : undefined
+        if (status === 401 || status === 403) {
+          clearAuthToken()
+          router.replace('/admin/login')
+          return
+        }
+        setError('Unable to load projects from the API.')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-  useEffect(() => {
-    if (!hydrated) return
-    persist(projects)
-  }, [projects, hydrated])
+    void loadProjects()
+  }, [router])
 
   const openCreate = () => {
     setCreating(true)
     setEditingId(null)
     setUploadPreview([])
+    setError(null)
     setForm({
-      id: '',
       title: '',
       location: '',
-      price: '',
+      price: '₹5 Cr',
       priceCr: 5,
       images: [],
       excerpt: '',
@@ -74,6 +84,7 @@ export default function AdminProjectsPage() {
     setCreating(false)
     setEditingId(p.id)
     setUploadPreview([])
+    setError(null)
     setForm({ ...p, amenities: [...p.amenities] })
   }
 
@@ -84,36 +95,78 @@ export default function AdminProjectsPage() {
     setUploadPreview([])
   }
 
-  const saveProject = () => {
+  const saveProject = async () => {
     if (!form.title?.trim()) return
-    let id = creating ? slugify(form.title) || `project-${Date.now()}` : editingId!
-    if (creating && projects.some((p) => p.id === id)) {
-      id = `${id}-${Date.now()}`
+    if (!form.location?.trim()) {
+      setError('Location is required.')
+      return
     }
-    const amenities = form.amenities ?? []
-
-    const next: Property = {
-      id,
-      title: form.title!.trim(),
-      location: form.location?.trim() ?? '',
-      price: form.price?.trim() || `₹${form.priceCr} Cr`,
-      priceCr: Number(form.priceCr) || 0,
-      images: [...(form.images ?? []), ...uploadPreview],
-      excerpt: form.excerpt?.trim() ?? '',
-      description: form.description?.trim() ?? '',
-      amenities
+    if (!form.description?.trim() || form.description.trim().length < 20) {
+      setError('Description must be at least 20 characters.')
+      return
     }
 
-    setProjects((prev) => {
-      if (creating) return [...prev.filter((p) => p.id !== id), next]
-      return prev.map((p) => (p.id === editingId ? next : p))
-    })
-    closeForm()
+    try {
+      setSaving(true)
+      setError(null)
+      const payload = {
+        title: form.title.trim(),
+        location: form.location.trim(),
+        price: Number(form.priceCr) || 0,
+        priceLabel: form.price?.trim() ?? '',
+        excerpt: form.excerpt?.trim() ?? '',
+        description: form.description.trim(),
+        images: [...(form.images ?? []), ...uploadPreview],
+        amenities: form.amenities ?? []
+      }
+
+      if (creating) {
+        const created = await createProjectApi(payload)
+        setProjects((prev) => [mapProject(created), ...prev.filter((project) => project.id !== created._id)])
+      } else if (editingId) {
+        const updated = await updateProjectApi(editingId, payload)
+        setProjects((prev) => prev.map((project) => (project.id === editingId ? mapProject(updated) : project)))
+      }
+
+      closeForm()
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      if (status === 401 || status === 403) {
+        clearAuthToken()
+        router.replace('/admin/login')
+        return
+      }
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error || err.response?.data?.message || 'Failed to save project.'
+        : 'Failed to save project.'
+      setError(String(message))
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const deleteProject = (id: string) => {
+  const deleteProject = async (id: string) => {
     if (!confirm('Remove this project from the admin list?')) return
-    setProjects((prev) => prev.filter((p) => p.id !== id))
+    try {
+      setDeletingId(id)
+      setError(null)
+      await deleteProjectApi(id)
+      setProjects((prev) => prev.filter((project) => project.id !== id))
+      if (editingId === id) closeForm()
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      if (status === 401 || status === 403) {
+        clearAuthToken()
+        router.replace('/admin/login')
+        return
+      }
+      const message = axios.isAxiosError(err)
+        ? err.response?.data?.error || err.response?.data?.message || 'Failed to delete project.'
+        : 'Failed to delete project.'
+      setError(String(message))
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const onFiles = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,7 +212,7 @@ export default function AdminProjectsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.25em] text-gold/90">Inventory</p>
           <h1 className="mt-2 font-display text-3xl font-semibold text-white md:text-4xl">Projects</h1>
           <p className="mt-2 text-sm text-white/50">
-            Add, edit, or remove listings. Persisted locally for this browser session stack — wire to your API when ready.
+            Add, edit, or remove listings directly through the API.
           </p>
         </div>
         <button
@@ -170,6 +223,18 @@ export default function AdminProjectsPage() {
           New project
         </button>
       </header>
+
+      {error ? (
+        <div className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+          {error}
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-10 text-center text-sm text-white/45">
+          Loading projects...
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         {projects.map((p, i) => (
@@ -204,10 +269,11 @@ export default function AdminProjectsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => deleteProject(p.id)}
-                  className="rounded-lg border border-rose-500/25 px-3 py-1.5 text-xs font-medium text-rose-200 transition hover:bg-rose-500/10"
+                  onClick={() => void deleteProject(p.id)}
+                  disabled={deletingId === p.id}
+                  className="rounded-lg border border-rose-500/25 px-3 py-1.5 text-xs font-medium text-rose-200 transition hover:bg-rose-500/10 disabled:opacity-60"
                 >
-                  Delete
+                  {deletingId === p.id ? 'Deleting...' : 'Delete'}
                 </button>
               </div>
             </div>
@@ -342,8 +408,8 @@ export default function AdminProjectsPage() {
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={saveProject} className="flex-1 rounded-xl bg-gold py-3 text-sm font-semibold text-black">
-                    Save
+                  <button type="button" onClick={() => void saveProject()} className="flex-1 rounded-xl bg-gold py-3 text-sm font-semibold text-black disabled:opacity-60" disabled={saving}>
+                    {saving ? 'Saving...' : 'Save'}
                   </button>
                   <button type="button" onClick={closeForm} className="rounded-xl border border-white/15 px-4 py-3 text-sm text-white/70">
                     Cancel

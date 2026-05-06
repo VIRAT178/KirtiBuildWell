@@ -4,6 +4,8 @@ export interface IProject extends mongoose.Document {
   title: string
   location: string
   price: number
+  priceLabel?: string
+  excerpt?: string
   description: string
   images: string[]
   amenities: string[]
@@ -31,6 +33,16 @@ const ProjectSchema = new mongoose.Schema<IProject>({
     required: [true, 'Price is required'],
     min: [0, 'Price must be greater than or equal to 0']
   },
+  priceLabel: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Price label must be at most 50 characters']
+  },
+  excerpt: {
+    type: String,
+    trim: true,
+    maxlength: [250, 'Excerpt must be at most 250 characters']
+  },
   description: {
     type: String,
     required: [true, 'Description is required'],
@@ -42,8 +54,8 @@ const ProjectSchema = new mongoose.Schema<IProject>({
     type: [String],
     default: [],
     validate: {
-      validator: (arr: string[]) => arr.every((item) => /^https?:\/\//.test(item)),
-      message: 'Images must contain valid HTTP/HTTPS URLs'
+      validator: (arr: string[]) => arr.every((item) => /^https?:\/\//.test(item) || /^data:image\//.test(item)),
+      message: 'Images must contain valid HTTP/HTTPS URLs or data image URLs'
     }
   },
   amenities: {

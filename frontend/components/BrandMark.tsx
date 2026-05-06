@@ -52,16 +52,30 @@ export function BrandMark({
         className
       )}
     >
-      <img
-        src="/logo.png"
-        alt={showWordmark ? '' : 'Kirti BuildWell'}
-        width={200}
-        height={56}
-        decoding="async"
-        fetchPriority={priority ? 'high' : undefined}
-        className={imgClass}
-        aria-hidden={showWordmark}
-      />
+      <span className="inline-flex shrink-0 overflow-hidden rounded-full bg-black/15 ring-1 ring-white/10">
+        {showWordmark ? (
+          <img
+            src="/logo.png"
+            alt=""
+            width={200}
+            height={56}
+            decoding="async"
+            fetchPriority={priority ? 'high' : undefined}
+            className={imgClass}
+            aria-hidden="true"
+          />
+        ) : (
+          <img
+            src="/logo.png"
+            alt="Kirti BuildWell"
+            width={200}
+            height={56}
+            decoding="async"
+            fetchPriority={priority ? 'high' : undefined}
+            className={imgClass}
+          />
+        )}
+      </span>
       {showWordmark ? (
         <span
           className={clsx(

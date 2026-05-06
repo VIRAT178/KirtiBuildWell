@@ -1,8 +1,53 @@
 import React from 'react'
 import { Metadata } from 'next'
-import { properties } from '../../../data/properties'
+import { properties as seedProperties } from '../../../data/properties'
 import ProjectsExplorer from '../../../components/ProjectsExplorer'
 import { generateMetadata, generateRealEstateStructuredData, generateBreadcrumbStructuredData } from '../../../lib/seo'
+import { getApiBaseUrl } from '../../../lib/api'
+
+type ProjectRecord = {
+  _id: string
+  title: string
+  location: string
+  price: number
+  priceLabel?: string
+  excerpt?: string
+  description: string
+  images: string[]
+  amenities: string[]
+}
+
+function formatPriceLabel(priceCr: number) {
+  if (!Number.isFinite(priceCr) || priceCr <= 0) return '₹0 Cr'
+  return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
+}
+
+function mapProject(project: ProjectRecord) {
+  const priceCr = Number(project.price) || 0
+  return {
+    id: project._id,
+    title: project.title,
+    location: project.location,
+    price: project.priceLabel?.trim() || formatPriceLabel(priceCr),
+    priceCr,
+    images: project.images ?? [],
+    excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
+    description: project.description,
+    amenities: project.amenities ?? []
+  }
+}
+
+async function loadProjects() {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/properties`, { cache: 'no-store' })
+    if (!response.ok) throw new Error('Failed to load projects')
+    const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord[] }
+    const projects = Array.isArray(payload.data) ? payload.data.map(mapProject) : []
+    return projects.length > 0 ? projects : seedProperties
+  } catch {
+    return seedProperties
+  }
+}
 
 export const metadata = generateMetadata({
   title: 'Projects | Luxury Real Estate Developments by KirtiBuildWell',
@@ -11,14 +56,16 @@ export const metadata = generateMetadata({
   url: '/projects'
 })
 
-export default function ProjectsPage() {
+export default async function ProjectsPage() {
+  const projects = await loadProjects()
+
   // Generate structured data for all properties
   const breadcrumbData = generateBreadcrumbStructuredData([
     { name: 'Home', url: '/' },
     { name: 'Projects', url: '/projects' }
   ])
 
-  const propertiesData = properties.map(property => 
+  const propertiesData = projects.map(property => 
     generateRealEstateStructuredData({
       name: property.title,
       description: property.description,
@@ -57,7 +104,7 @@ export default function ProjectsPage() {
           </p>
         </header>
         <div className="mt-14">
-          <ProjectsExplorer items={properties} />
+          <ProjectsExplorer items={projects} />
         </div>
       </section>
     </>

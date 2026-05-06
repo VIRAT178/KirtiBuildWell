@@ -10,7 +10,6 @@ export const metadata = generateMetadata({
 })
 
 export default function RealEstateProjectsLucknowPage() {
-  // Generate structured data
   const breadcrumbData = generateBreadcrumbStructuredData([
     { name: 'Home', url: '/' },
     { name: 'Real Estate Projects in Lucknow', url: '/real-estate-projects-lucknow' }
@@ -29,10 +28,7 @@ export default function RealEstateProjectsLucknowPage() {
         <section className="relative min-h-[60vh] overflow-hidden">
           <div className="absolute inset-0">
             <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{
-                backgroundImage: 'url(https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920&q=80)'
-              }}
+              className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920&q=80')] bg-cover bg-center"
             />
             <div className="absolute inset-0 bg-gradient-to-b from-black/80 to-lux-darker" />
           </div>

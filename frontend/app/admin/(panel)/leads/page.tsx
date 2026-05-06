@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import axios from 'axios'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -257,6 +258,8 @@ export default function AdminLeadsPage() {
                 <th className="px-5 py-4 font-medium">
                   <input
                     type="checkbox"
+                    aria-label="Select all leads"
+                    title="Select all leads"
                     checked={selectedLeads.size === leads.length && leads.length > 0}
                     onChange={handleSelectAll}
                     className="rounded border-white/20 bg-black/40 text-gold focus:ring-gold/45"
@@ -289,12 +292,18 @@ export default function AdminLeadsPage() {
                     <td className="px-5 py-4">
                       <input
                         type="checkbox"
+                        aria-label={`Select lead ${lead.name}`}
+                        title={`Select lead ${lead.name}`}
                         checked={selectedLeads.has(lead._id)}
                         onChange={() => handleSelectLead(lead._id)}
                         className="rounded border-white/20 bg-black/40 text-gold focus:ring-gold/45"
                       />
                     </td>
-                    <td className="px-5 py-4 font-medium text-white">{lead.name}</td>
+                    <td className="px-5 py-4 font-medium text-white">
+                      <Link href={`/admin/leads/${lead._id}`} className="text-gold hover:underline">
+                        {lead.name}
+                      </Link>
+                    </td>
                     <td className="px-5 py-4">
                       <div className="text-white/85">{lead.email}</div>
                       <div className="text-white/45">{lead.phone}</div>

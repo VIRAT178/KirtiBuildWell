@@ -38,7 +38,7 @@ export async function getProjectById(req: Request, res: Response, next: NextFunc
 
 export async function createProject(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { title, location, price, description, images, amenities } = req.body
+    const { title, location, price, priceLabel, excerpt, description, images, amenities } = req.body
     
     // Validation
     if (!title) return res.status(400).json({ success: false, error: 'Title is required' })
@@ -50,6 +50,8 @@ export async function createProject(req: AuthRequest, res: Response, next: NextF
       title: title.trim(),
       location: location.trim(),
       price: Number(price),
+      priceLabel: priceLabel?.trim() || undefined,
+      excerpt: excerpt?.trim() || undefined,
       description: description.trim(),
       images: Array.isArray(images) ? images : [],
       amenities: Array.isArray(amenities) ? amenities : []
@@ -79,7 +81,7 @@ export async function createProject(req: AuthRequest, res: Response, next: NextF
 export async function updateProject(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { id } = req.params
-    const { title, location, price, description, images, amenities } = req.body
+    const { title, location, price, priceLabel, excerpt, description, images, amenities } = req.body
     
     const project = await Project.findById(id)
     if (!project) {
@@ -93,6 +95,8 @@ export async function updateProject(req: AuthRequest, res: Response, next: NextF
     if (title !== undefined) updateData.title = title.trim()
     if (location !== undefined) updateData.location = location.trim()
     if (price !== undefined && price !== null) updateData.price = Number(price)
+    if (priceLabel !== undefined) updateData.priceLabel = priceLabel?.trim() || ''
+    if (excerpt !== undefined) updateData.excerpt = excerpt?.trim() || ''
     if (description !== undefined) updateData.description = description.trim()
     if (images !== undefined) updateData.images = Array.isArray(images) ? images : []
     if (amenities !== undefined) updateData.amenities = Array.isArray(amenities) ? amenities : []
@@ -138,7 +142,7 @@ export async function deleteProject(req: AuthRequest, res: Response, next: NextF
     
     // Log activity
     await Activity.create({
-      type: 'project_updated',
+      type: 'project_deleted',
       description: `Project deleted: ${project.title}`,
       userId: req.user?.id,
       projectId: project._id,

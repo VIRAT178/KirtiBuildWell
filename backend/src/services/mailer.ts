@@ -21,6 +21,26 @@ type BrevoRecipient = {
   name?: string
 }
 
+type FollowUpPayload = {
+  name: string
+  email: string
+  phone?: string
+}
+
+type AdminNotificationPayload = {
+  leadName: string
+  leadEmail: string
+  leadPhone: string
+  leadMessage: string
+  propertyTitle?: string
+  leadId: string
+}
+
+// Get base URL for email links
+function getBaseUrl(): string {
+  return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
+}
+
 // Brevo HTTP send using the transactional email API
 async function sendViaBrevo(to: string | string[], subject: string, htmlContent: string, textContent: string): Promise<string> {
   const apiKey = process.env.BREVO_API_KEY
@@ -63,26 +83,6 @@ async function sendViaBrevo(to: string | string[], subject: string, htmlContent:
   }
 
   return responseText || 'brevo-sent'
-}
-
-type FollowUpPayload = {
-  name: string
-  email: string
-  phone?: string
-}
-
-type AdminNotificationPayload = {
-  leadName: string
-  leadEmail: string
-  leadPhone: string
-  leadMessage: string
-  propertyTitle?: string
-  leadId: string
-}
-
-// Get base URL for email links
-function getBaseUrl(): string {
-  return process.env.FRONTEND_URL || 'https://kirti-build-well.vercel.app'
 }
 
 // Unified send via Brevo (no SMTP)
@@ -189,8 +189,6 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
 
     const configuredAdminEmail = process.env.ADMIN_NOTIFICATION_EMAIL?.trim()
 
-    // Prefer the explicit Zoho Mail inbox for admin notifications.
-    // Fall back to admin users only if the env var is not set.
     let adminEmails: string[] = []
     if (configuredAdminEmail) {
       adminEmails = [configuredAdminEmail]
@@ -203,8 +201,6 @@ export async function sendAdminNotificationEmail(payload: AdminNotificationPaylo
       console.warn('No admin users found to send notification email')
       return
     }
-
-    console.log('📨 Admin notification recipients:', adminEmails)
 
     // Simple admin notification HTML
     const adminHtml = `

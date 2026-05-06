@@ -1,15 +1,58 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
-import { properties } from '../../../../data/properties'
+import { properties as seedProperties } from '../../../../data/properties'
 import ProjectGallery from '../../../../components/ProjectGallery'
 import LeadForm from '../../../../components/LeadForm'
+import { getApiBaseUrl } from '../../../../lib/api'
 
-export function generateStaticParams() {
-  return properties.map((p) => ({ slug: p.id }))
+type ProjectRecord = {
+  _id: string
+  title: string
+  location: string
+  price: number
+  priceLabel?: string
+  excerpt?: string
+  description: string
+  images: string[]
+  amenities: string[]
 }
 
-export default function ProjectDetailPage({ params }: { params: { slug: string } }) {
-  const prop = properties.find((p) => p.id === params.slug)
+function formatPriceLabel(priceCr: number) {
+  if (!Number.isFinite(priceCr) || priceCr <= 0) return '₹0 Cr'
+  return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
+}
+
+function mapProject(project: ProjectRecord) {
+  const priceCr = Number(project.price) || 0
+  return {
+    id: project._id,
+    title: project.title,
+    location: project.location,
+    price: project.priceLabel?.trim() || formatPriceLabel(priceCr),
+    priceCr,
+    images: project.images ?? [],
+    excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
+    description: project.description,
+    amenities: project.amenities ?? []
+  }
+}
+
+async function loadProject(slug: string) {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/properties/${slug}`, { cache: 'no-store' })
+    if (response.ok) {
+      const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord }
+      if (payload.data) return mapProject(payload.data)
+    }
+  } catch {
+    // Fall back to the static seed data below.
+  }
+
+  return seedProperties.find((project) => project.id === slug) ?? null
+}
+
+export default async function ProjectDetailPage({ params }: { params: { slug: string } }) {
+  const prop = await loadProject(params.slug)
   if (!prop) notFound()
 
   return (
