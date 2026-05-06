@@ -33,6 +33,7 @@ export default function AdminProjectsPage() {
   const [projects, setProjects] = useState<Property[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<Property>>({})
+  const [amenitiesInput, setAmenitiesInput] = useState('')
   const [uploadPreview, setUploadPreview] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -78,6 +79,7 @@ export default function AdminProjectsPage() {
       description: '',
       amenities: []
     })
+    setAmenitiesInput('')
   }
 
   const openEdit = (p: Property) => {
@@ -86,12 +88,14 @@ export default function AdminProjectsPage() {
     setUploadPreview([])
     setError(null)
     setForm({ ...p, amenities: [...p.amenities] })
+    setAmenitiesInput((p.amenities ?? []).join(', '))
   }
 
   const closeForm = () => {
     setEditingId(null)
     setCreating(false)
     setForm({})
+    setAmenitiesInput('')
     setUploadPreview([])
   }
 
@@ -109,6 +113,10 @@ export default function AdminProjectsPage() {
     try {
       setSaving(true)
       setError(null)
+      const parsedAmenities = amenitiesInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
       const payload = {
         title: form.title.trim(),
         location: form.location.trim(),
@@ -117,7 +125,7 @@ export default function AdminProjectsPage() {
         excerpt: form.excerpt?.trim() ?? '',
         description: form.description.trim(),
         images: [...(form.images ?? []), ...uploadPreview],
-        amenities: form.amenities ?? []
+        amenities: parsedAmenities
       }
 
       if (creating) {
@@ -357,13 +365,15 @@ export default function AdminProjectsPage() {
                   Amenities (comma-separated)
                   <input
                     className="mt-1 w-full rounded-xl border border-white/12 bg-black/40 px-3 py-2 text-sm text-white outline-none focus:border-gold/45"
-                    value={(form.amenities ?? []).join(', ')}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        amenities: e.target.value.split(',').map((s) => s.trim()).filter(Boolean)
-                      }))
-                    }
+                    value={amenitiesInput}
+                    onChange={(e) => setAmenitiesInput(e.target.value)}
+                    onBlur={() => {
+                      const parsed = amenitiesInput
+                        .split(',')
+                        .map((s) => s.trim())
+                        .filter(Boolean)
+                      setForm((f) => ({ ...f, amenities: parsed }))
+                    }}
                   />
                 </label>
 
