@@ -15,6 +15,10 @@ type ProjectRecord = {
   description: string
   images: string[]
   amenities: string[]
+  bedrooms?: number
+  area?: string
+  availability?: string
+  propertyType?: 'Apartment' | 'Flat' | 'Villa' | 'Commercial'
 }
 
 function formatPriceLabel(priceCr: number) {
@@ -22,7 +26,7 @@ function formatPriceLabel(priceCr: number) {
   return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
 }
 
-function mapProject(project: ProjectRecord) {
+function mapProject(project: ProjectRecord): typeof seedProperties[number] {
   const priceCr = Number(project.price) || 0
   return {
     id: project._id,
@@ -33,7 +37,11 @@ function mapProject(project: ProjectRecord) {
     images: project.images ?? [],
     excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
     description: project.description,
-    amenities: project.amenities ?? []
+    amenities: project.amenities ?? [],
+    bedrooms: project.bedrooms,
+    area: project.area,
+    availability: project.availability,
+    propertyType: project.propertyType
   }
 }
 
