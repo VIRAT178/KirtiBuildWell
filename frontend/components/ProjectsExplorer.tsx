@@ -4,21 +4,21 @@ import React, { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import PropertyCard from './PropertyCard'
 import type { Property } from '../data/properties'
-import { locationFilters } from '../data/properties'
 
 export default function ProjectsExplorer({ items }: { items: Property[] }) {
   const [location, setLocation] = useState('All')
   const [maxCr, setMaxCr] = useState<number>(50)
 
+  const locationFilters = useMemo(() => {
+    const dynamicLocations = Array.from(new Set(items.map((item) => item.location?.trim()).filter(Boolean)))
+    return ['All', ...dynamicLocations]
+  }, [items])
+
   const maxAvailable = useMemo(() => Math.max(...items.map((p) => p.priceCr), 20), [items])
 
   const filtered = useMemo(() => {
     return items.filter((p) => {
-      const locOk =
-        location === 'All' ||
-        (location === 'Mumbai' && p.location.includes('Mumbai')) ||
-        (location === 'Pune' && p.location.includes('Pune')) ||
-        (location === 'Alibaug' && p.location.includes('Alibaug'))
+      const locOk = location === 'All' || p.location === location
       const priceOk = p.priceCr <= maxCr
       return locOk && priceOk
     })

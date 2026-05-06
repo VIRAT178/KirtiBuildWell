@@ -1,6 +1,6 @@
 import React from 'react'
 import { Metadata } from 'next'
-import { properties as seedProperties } from '../../../data/properties'
+import type { Property } from '../../../data/properties'
 import ProjectsExplorer from '../../../components/ProjectsExplorer'
 import { generateMetadata, generateRealEstateStructuredData, generateBreadcrumbStructuredData } from '../../../lib/seo'
 import { getApiBaseUrl } from '../../../lib/api'
@@ -26,7 +26,7 @@ function formatPriceLabel(priceCr: number) {
   return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
 }
 
-function mapProject(project: ProjectRecord): typeof seedProperties[number] {
+function mapProject(project: ProjectRecord): Property {
   const priceCr = Number(project.price) || 0
   return {
     id: project._id,
@@ -51,9 +51,9 @@ async function loadProjects() {
     if (!response.ok) throw new Error('Failed to load projects')
     const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord[] }
     const projects = Array.isArray(payload.data) ? payload.data.map(mapProject) : []
-    return projects.length > 0 ? projects : seedProperties
+    return projects
   } catch {
-    return seedProperties
+    return []
   }
 }
 

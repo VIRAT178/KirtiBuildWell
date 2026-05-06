@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import PropertyCard from '../../components/PropertyCard'
-import { properties as seedProperties } from '../../data/properties'
+import type { Property } from '../../data/properties'
 import { getApiBaseUrl } from '../../lib/api'
 import { generateRealEstateStructuredData, generateOrganizationStructuredData, generateLocalBusinessStructuredData } from '../../lib/seo'
 
@@ -59,7 +59,7 @@ const testimonials = [
 ]
 
 export default function HomePage() {
-  const [projects, setProjects] = useState(seedProperties)
+  const [projects, setProjects] = useState<Property[]>([])
 
   useEffect(() => {
     let active = true
@@ -70,11 +70,13 @@ export default function HomePage() {
         if (!response.ok) throw new Error('Failed to load projects')
         const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord[] }
         const nextProjects = Array.isArray(payload.data) ? payload.data.map(mapProject) : []
-        if (active && nextProjects.length > 0) {
+        if (active) {
           setProjects(nextProjects)
         }
       } catch {
-        // Keep the seed inventory when the API is unavailable.
+        if (active) {
+          setProjects([])
+        }
       }
     }
 

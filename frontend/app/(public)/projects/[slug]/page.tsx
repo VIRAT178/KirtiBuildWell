@@ -1,6 +1,5 @@
 import React from 'react'
 import { notFound } from 'next/navigation'
-import { properties as seedProperties } from '../../../../data/properties'
 import ProjectGallery from '../../../../components/ProjectGallery'
 import LeadForm from '../../../../components/LeadForm'
 import { getApiBaseUrl } from '../../../../lib/api'
@@ -45,10 +44,9 @@ async function loadProject(slug: string) {
       if (payload.data) return mapProject(payload.data)
     }
   } catch {
-    // Fall back to the static seed data below.
+    return null
   }
-
-  return seedProperties.find((project) => project.id === slug) ?? null
+  return null
 }
 
 export default async function ProjectDetailPage({ params }: { params: { slug: string } }) {

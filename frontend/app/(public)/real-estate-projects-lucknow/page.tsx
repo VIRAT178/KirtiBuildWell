@@ -1,6 +1,51 @@
 import { Metadata } from 'next'
 import { generateMetadata, generateBreadcrumbStructuredData } from '../../../lib/seo'
 import Link from 'next/link'
+import { getApiBaseUrl } from '../../../lib/api'
+import type { Property } from '../../../data/properties'
+
+type ProjectRecord = {
+  _id: string
+  title: string
+  location: string
+  price: number
+  priceLabel?: string
+  excerpt?: string
+  description: string
+  images: string[]
+  amenities: string[]
+}
+
+function formatPriceLabel(priceCr: number) {
+  if (!Number.isFinite(priceCr) || priceCr <= 0) return '₹0 Cr'
+  return `₹${Number.isInteger(priceCr) ? priceCr : priceCr} Cr`
+}
+
+function mapProject(project: ProjectRecord): Property {
+  const priceCr = Number(project.price) || 0
+  return {
+    id: project._id,
+    title: project.title,
+    location: project.location,
+    price: project.priceLabel?.trim() || formatPriceLabel(priceCr),
+    priceCr,
+    images: project.images ?? [],
+    excerpt: project.excerpt?.trim() || project.description.slice(0, 140),
+    description: project.description,
+    amenities: project.amenities ?? []
+  }
+}
+
+async function loadProjects() {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/properties`, { cache: 'no-store' })
+    if (!response.ok) throw new Error('Failed to load projects')
+    const payload = (await response.json()) as { success?: boolean; data?: ProjectRecord[] }
+    return Array.isArray(payload.data) ? payload.data.map(mapProject) : []
+  } catch {
+    return []
+  }
+}
 
 export const metadata = generateMetadata({
   title: 'Real Estate Projects in Lucknow | Premium Developments by KirtiBuildWell',
@@ -9,11 +54,12 @@ export const metadata = generateMetadata({
   url: '/real-estate-projects-lucknow'
 })
 
-export default function RealEstateProjectsLucknowPage() {
+export default async function RealEstateProjectsLucknowPage() {
   const breadcrumbData = generateBreadcrumbStructuredData([
     { name: 'Home', url: '/' },
     { name: 'Real Estate Projects in Lucknow', url: '/real-estate-projects-lucknow' }
   ])
+  const projects = await loadProjects()
 
   return (
     <>
@@ -53,58 +99,33 @@ export default function RealEstateProjectsLucknowPage() {
               </h2>
               
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-                {/* Project Cards */}
-                <div className="lux-card overflow-hidden group hover:shadow-gold transition-all duration-300">
-                  <div className="relative h-48">
-                    <img
-                      src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400&q=80"
-                      alt="Luxury Apartments"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                {projects.map((project) => (
+                  <div key={project.id} className="lux-card overflow-hidden group hover:shadow-gold transition-all duration-300">
+                    <div className="relative h-48">
+                      {project.images[0] ? (
+                        <img
+                          src={project.images[0]}
+                          alt={project.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center bg-black/20 text-sm text-white/45">No image</div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                    </div>
+                    <div className="p-6">
+                      <h3 className="font-display text-xl font-semibold text-white mb-2">{project.title}</h3>
+                      <p className="text-gold text-sm mb-4">{project.price}</p>
+                      <p className="text-white/60 text-sm mb-4">{project.location}</p>
+                      <p className="text-white/70 text-sm">{project.excerpt || project.description}</p>
+                    </div>
                   </div>
-                  <div className="p-6">
-                    <h3 className="font-display text-xl font-semibold text-white mb-2">Golden Vista Residence</h3>
-                    <p className="text-gold text-sm mb-4">2-4 BHK Luxury Apartments</p>
-                    <p className="text-white/60 text-sm mb-4">Gomti Nagar, Lucknow</p>
-                    <p className="text-white/70 text-sm">Premium apartments with panoramic views and modern amenities.</p>
-                  </div>
-                </div>
-
-                <div className="lux-card overflow-hidden group hover:shadow-gold transition-all duration-300">
-                  <div className="relative h-48">
-                    <img
-                      src="https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=400&q=80"
-                      alt="Premium Flats"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="font-display text-xl font-semibold text-white mb-2">Emerald Heights</h3>
-                    <p className="text-gold text-sm mb-4">3-5 BHK Premium Flats</p>
-                    <p className="text-white/60 text-sm mb-4">Alambagh, Lucknow</p>
-                    <p className="text-white/70 text-sm">Spacious flats with world-class amenities and excellent connectivity.</p>
-                  </div>
-                </div>
-
-                <div className="lux-card overflow-hidden group hover:shadow-gold transition-all duration-300">
-                  <div className="relative h-48">
-                    <img
-                      src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400&q=80"
-                      alt="Residential Complex"
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
-                  </div>
-                  <div className="p-6">
-                    <h3 className="font-display text-xl font-semibold text-white mb-2">Platinum Towers</h3>
-                    <p className="text-gold text-sm mb-4">1-3 BHK Studio Apartments</p>
-                    <p className="text-white/60 text-sm mb-4">Hazratganj, Lucknow</p>
-                    <p className="text-white/70 text-sm">Modern studio apartments in the heart of the city.</p>
-                  </div>
-                </div>
+                ))}
               </div>
+
+              {projects.length === 0 ? (
+                <p className="mb-16 text-center text-sm text-white/55">No projects available right now.</p>
+              ) : null}
 
               {/* Why Choose Our Projects */}
               <div className="grid md:grid-cols-2 gap-12 mb-16">
