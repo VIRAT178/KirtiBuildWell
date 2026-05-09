@@ -4,6 +4,7 @@ import React from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { BrandMark } from './BrandMark'
+import { CONTACT_ADDRESS_LINES, CONTACT_EMAIL, CONTACT_PHONE_DISPLAY } from '../lib/site'
 
 export default function Footer() {
   return (
@@ -24,10 +25,10 @@ export default function Footer() {
             </p>
             <div className="mt-4 text-xs text-white/45">
               <p className="font-semibold text-gold/90 mb-2">Office Address</p>
-              <p>Meera Complex, 12, Pahad Nagar Tekariya</p>
-              <p>Lucknow, Selhu Mau, Uttar Pradesh 226303</p>
-              <p className="mt-2">📧 info@kirtibuildwell.com</p>
-              <p>📞 +91-8881115002</p>
+              <p>{CONTACT_ADDRESS_LINES[0]}</p>
+              <p>{CONTACT_ADDRESS_LINES[1]}, {CONTACT_ADDRESS_LINES[2]}</p>
+              <p className="mt-2">📧 {CONTACT_EMAIL}</p>
+              <p>📞 {CONTACT_PHONE_DISPLAY}</p>
             </div>
           </motion.div>
           <div>
@@ -54,14 +55,14 @@ export default function Footer() {
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold/90">Legal</p>
             <ul className="mt-4 space-y-3 text-sm text-white/65">
               <li>
-                <a href="#" className="transition hover:text-gold">
+                <Link href="/privacy" className="transition hover:text-gold">
                   Privacy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="transition hover:text-gold">
+                <Link href="/terms" className="transition hover:text-gold">
                   Terms
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

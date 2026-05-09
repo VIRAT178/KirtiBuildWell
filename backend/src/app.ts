@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import path from 'path'
+import compression from 'compression'
 
 import authRoutes from './routes/auth'
 import propertyRoutes from './routes/properties'
@@ -17,6 +18,8 @@ dotenv.config({ path: path.join(__dirname, '../.env') })
 
 const app = express()
 
+app.disable('x-powered-by')
+app.use(compression())
 app.use(cors())
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
@@ -38,10 +41,12 @@ app.get('/health', (req, res) => {
   })
 })
 
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} | ${req.method} ${req.url}`)
-  next()
-})
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} | ${req.method} ${req.url}`)
+    next()
+  })
+}
 
 app.use('/api/auth', authRoutes)
 app.use('/api/properties', propertyRoutes)

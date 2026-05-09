@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -13,7 +13,7 @@
     "axios": "^1.4.0",
     "clsx": "^1.2.1",
     "framer-motion": "^11.18.2",
-    "next": "14.0.0",
+    "next": "^14.2.35",
     "postcss": "^8.4.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",

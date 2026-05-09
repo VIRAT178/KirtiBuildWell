@@ -7,6 +7,7 @@ const router = express.Router()
 
 // Public routes
 router.get('/', listProperties)
+router.get('/legacy/list', listProperties)
 router.get('/:id', getProjectById)
 
 // Admin-only routes
@@ -15,7 +16,6 @@ router.put('/:id', authenticateToken, requireAdmin, updateProject)
 router.delete('/:id', authenticateToken, requireAdmin, deleteProject)
 
 // Legacy routes for backward compatibility
-router.get('/legacy/list', listProperties)
 router.post('/legacy/create', createProperty)
 
 export default router

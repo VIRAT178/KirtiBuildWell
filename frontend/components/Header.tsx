@@ -1,14 +1,16 @@
 import React from 'react'
+import Link from 'next/link'
+import { BrandMark } from './BrandMark'
 
 export default function Header(){
   return (
-    <header className="w-full bg-white border-b">
-      <div className="container mx-auto p-4 flex items-center justify-between">
-        <div className="text-xl font-semibold">KirtiBuildWell</div>
+    <header className="w-full border-b border-white/10 bg-black/70 backdrop-blur-xl">
+      <div className="container mx-auto flex items-center justify-between p-4">
+        <BrandMark href="/" layout="inline" size="sm" priority className="min-w-0 shrink" />
         <nav>
-          <a className="mr-4 text-sm text-slate-700" href="#">Listings</a>
-          <a className="mr-4 text-sm text-slate-700" href="#">Leads</a>
-          <a className="text-sm text-slate-700" href="#">Admin</a>
+          <Link className="mr-4 text-sm text-white/70 transition hover:text-gold" href="/projects">Projects</Link>
+          <Link className="mr-4 text-sm text-white/70 transition hover:text-gold" href="/contact">Contact</Link>
+          <Link className="text-sm text-white/70 transition hover:text-gold" href="/admin/login">Admin</Link>
         </nav>
       </div>
     </header>

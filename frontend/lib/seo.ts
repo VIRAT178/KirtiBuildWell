@@ -1,10 +1,10 @@
 import { Metadata } from 'next'
+import { CONTACT_ADDRESS_LINES, CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, SITE_NAME, SITE_TAGLINE, SITE_URL } from './site'
 
 // SEO Constants
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://kirtibuildwell.com'
 const CITY = 'Lucknow'
-const COMPANY_NAME = 'KirtiBuildWell'
-const COMPANY_DESCRIPTION = 'Premium real estate developer in Lucknow offering luxury flats, apartments, and residential projects with modern amenities and excellent connectivity.'
+const COMPANY_NAME = SITE_NAME
+const COMPANY_DESCRIPTION = SITE_TAGLINE
 
 // SEO Keywords
 const LOCAL_KEYWORDS = [
@@ -160,10 +160,10 @@ export function generateRealEstateStructuredData(project: {
         addressLocality: CITY,
         addressRegion: 'Uttar Pradesh',
         addressCountry: 'IN',
-        streetAddress: 'Meera Complex, 12, Pahad Nagar Tekariya, Selhu Mau',
+        streetAddress: CONTACT_ADDRESS_LINES.join(', '),
       },
-      telephone: '+91-8881115002',
-      email: 'info@kirtibuildwell.com',
+      telephone: CONTACT_PHONE_DISPLAY,
+      email: CONTACT_EMAIL,
     },
   }
 }
@@ -183,10 +183,10 @@ export function generateOrganizationStructuredData() {
       addressLocality: CITY,
       addressRegion: 'Uttar Pradesh',
       addressCountry: 'IN',
-      streetAddress: 'Meera Complex, 12, Pahad Nagar Tekariya, Selhu Mau',
+      streetAddress: CONTACT_ADDRESS_LINES.join(', '),
       postalCode: '226303',
     },
-    telephone: '+91-8881115002',
+    telephone: CONTACT_PHONE_DISPLAY,
     email: 'info@kirtibuildwell.com',
     sameAs: [
       'https://www.facebook.com/kirtibuildwell',
@@ -195,7 +195,7 @@ export function generateOrganizationStructuredData() {
     ],
     contactPoint: {
       '@type': 'ContactPoint',
-      telephone: '+91-8881115002',
+      telephone: CONTACT_PHONE_DISPLAY,
       contactType: 'sales',
       availableLanguage: ['English', 'Hindi'],
     },
@@ -246,13 +246,13 @@ export function generateLocalBusinessStructuredData() {
     name: COMPANY_NAME,
     description: COMPANY_DESCRIPTION,
     url: SITE_URL,
-    telephone: '+91-8881115002',
+    telephone: CONTACT_PHONE_DISPLAY,
     address: {
       '@type': 'PostalAddress',
       addressLocality: CITY,
       addressRegion: 'Uttar Pradesh',
       addressCountry: 'IN',
-      streetAddress: 'Meera Complex, 12, Pahad Nagar Tekariya, Selhu Mau',
+      streetAddress: CONTACT_ADDRESS_LINES.join(', '),
       postalCode: '226303',
     },
     geo: {

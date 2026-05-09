@@ -6,6 +6,7 @@ import { AuthRequest } from '../middleware/auth'
 export async function getProjects(req: Request, res: Response, next: NextFunction) {
   try {
     const projects = await Project.find().sort({ createdAt: -1 }).lean()
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
     return res.status(200).json({
       success: true,
       data: projects
@@ -19,6 +20,7 @@ export async function getProjectById(req: Request, res: Response, next: NextFunc
   try {
     const { id } = req.params
     const project = await Project.findById(id).lean()
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600')
     
     if (!project) {
       return res.status(404).json({

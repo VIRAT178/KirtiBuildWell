@@ -28,7 +28,11 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "../../../../../../temp/kbt-next/types/**/*.ts",
+    "C:\\temp\\kbt-next/types/**/*.ts",
+    "C:\\temp\\kbt-next/types/**/*.ts",
+    "..\\..\\..\\..\\..\\..\\temp\\kbt-next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

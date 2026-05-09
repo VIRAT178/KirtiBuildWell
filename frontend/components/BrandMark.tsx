@@ -2,19 +2,20 @@
 
 import React from 'react'
 import clsx from 'clsx'
+import Image from 'next/image'
 import Link from 'next/link'
+import { SITE_NAME } from '../lib/site'
+
+const LOGO_PATH = '/brand-wordmark.png'
+const BRAND_ARIA_LABEL = `${SITE_NAME} home`
 
 export type BrandMarkProps = {
-  /** Use `undefined` or `''` for a non-clickable mark (wrap yourself if needed). */
   href?: string
   layout?: 'inline' | 'stacked'
-  /** When `layout` is stacked, align logo + wordmark (sidebar vs centered hero). */
   stackedAlign?: 'center' | 'start'
   size?: 'sm' | 'md' | 'lg'
-  showWordmark?: boolean
   className?: string
   onClick?: () => void
-  /** Hint LCP for above-the-fold header logo */
   priority?: boolean
 }
 
@@ -23,72 +24,37 @@ export function BrandMark({
   layout = 'inline',
   stackedAlign = 'center',
   size = 'md',
-  showWordmark = true,
   className = '',
   onClick,
   priority = false
 }: BrandMarkProps) {
   const imgClass =
     size === 'sm'
-      ? 'h-7 w-auto max-w-[90px] object-contain object-left sm:max-w-[110px] md:h-8'
+      ? 'h-10 w-auto max-w-[180px] object-contain object-left sm:max-w-[200px] md:h-12 font-bold'
       : size === 'lg'
-        ? 'h-10 w-auto max-w-[160px] object-contain object-left md:h-12 md:max-w-[200px]'
-        : 'h-8 w-auto max-w-[110px] object-contain object-left sm:max-w-[130px] md:h-9 md:max-w-[160px]'
-
-  const textClass =
-    size === 'sm'
-      ? 'text-sm sm:text-base'
-      : size === 'lg'
-        ? 'text-lg md:text-xl'
-        : 'text-base md:text-lg'
+        ? 'h-16 w-auto max-w-[350px] object-contain object-left md:h-18 md:max-w-[400px] font-bold'
+        : 'h-12 w-auto max-w-[250px] object-contain object-left sm:max-w-[300px] md:h-14 md:max-w-[350px] font-bold'
 
   const inner = (
     <div
       className={clsx(
-        'flex gap-2.5 sm:gap-3',
-        layout === 'inline' && 'items-center',
-        layout === 'stacked' && 'flex-col',
+        'flex min-w-0 items-center',
+        layout === 'stacked' ? 'flex-col gap-2' : 'gap-2.5 sm:gap-3',
         layout === 'stacked' && (stackedAlign === 'start' ? 'items-start' : 'items-center'),
         className
       )}
     >
-      <span className="inline-flex shrink-0 overflow-hidden rounded-full bg-black/15 ring-1 ring-white/10">
-        {showWordmark ? (
-          <img
-            src="/logo.png"
-            alt=""
-            width={200}
-            height={56}
-            decoding="async"
-            fetchPriority={priority ? 'high' : undefined}
-            className={imgClass}
-            aria-hidden="true"
-          />
-        ) : (
-          <img
-            src="/logo.png"
-            alt="Kirti BuildWell"
-            width={200}
-            height={56}
-            decoding="async"
-            fetchPriority={priority ? 'high' : undefined}
-            className={imgClass}
-          />
-        )}
+      <span className="inline-flex shrink-0">
+        <Image
+          src={LOGO_PATH}
+          alt={SITE_NAME}
+          width={1237}
+          height={472}
+          priority={priority}
+          className={imgClass}
+          sizes={size === 'lg' ? '400px' : size === 'sm' ? '200px' : '300px'}
+        />
       </span>
-      {showWordmark ? (
-        <span
-          className={clsx(
-            'font-display font-semibold leading-tight tracking-tight',
-            textClass,
-            layout === 'stacked' && stackedAlign === 'center' && 'text-center',
-            layout === 'stacked' && stackedAlign === 'start' && 'text-left'
-          )}
-        >
-          <span className="gold-gradient-text">Kirti</span>
-          <span className="text-white/95"> BuildWell</span>
-        </span>
-      ) : null}
     </div>
   )
 
@@ -96,7 +62,7 @@ export function BrandMark({
 
   if (isLink) {
     return (
-      <Link href={href} className="relative z-10 inline-flex min-w-0 max-w-full" onClick={onClick} aria-label="Kirti BuildWell home">
+      <Link href={href} className="relative z-10 inline-flex min-w-0 max-w-full" onClick={onClick} aria-label={BRAND_ARIA_LABEL}>
         {inner}
       </Link>
     )

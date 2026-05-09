@@ -3,6 +3,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import LeadForm from '../../../components/LeadForm'
+import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY } from '../../../lib/site'
 
 const MAP_EMBED =
   'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3576.123456789!2d80.912345678!3d26.8467123!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x39f5e5f5f5f5f5f5%3A0x5f5f5f5f5f5f5f5!2sMeera%20Complex%2C%20Pahad%20Nagar%20Tekariya%2C%20Lucknow!5e0!3m2!1sen!2sin!4v1700000000000!5m2!1sen!2sin'
@@ -32,7 +33,7 @@ export default function ContactPage() {
             </div>
             <div>
               <dt className="text-xs uppercase tracking-wider text-white/40">Contact</dt>
-              <dd className="mt-1 text-white/80">📧 info@kirtibuildwell.com | 📞 +91-8881115002</dd>
+              <dd className="mt-1 text-white/80">📧 {CONTACT_EMAIL} | 📞 {CONTACT_PHONE_DISPLAY}</dd>
             </div>
           </dl>
 

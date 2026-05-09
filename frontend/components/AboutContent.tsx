@@ -4,6 +4,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import Navbar from './Navbar'
+import { CONTACT_ADDRESS_LINES, CONTACT_EMAIL, CONTACT_PHONE_DISPLAY } from '../lib/site'
 
 const AboutContent = () => {
   return (
@@ -424,16 +425,18 @@ const AboutContent = () => {
                     <div>
                       <h3 className="font-display text-2xl font-semibold text-gold mb-6">Office Address</h3>
                       <p className="text-white/80 leading-relaxed text-lg">
-                        Meera Complex, 12, Pahad Nagar Tekariya<br />
-                        Lucknow, Selhu Mau<br />
-                        Uttar Pradesh 226303<br />
-                        India
+                        {CONTACT_ADDRESS_LINES.map((line) => (
+                          <React.Fragment key={line}>
+                            {line}
+                            <br />
+                          </React.Fragment>
+                        ))}
                       </p>
                     </div>
                     <div>
                       <h3 className="font-display text-2xl font-semibold text-gold mb-6">Get in Touch</h3>
-                      <p className="text-white/80 mb-4 text-lg">📧 info@kirtibuildwell.com</p>
-                      <p className="text-white/80 mb-4 text-lg">📞 +91-8881115002</p>
+                      <p className="text-white/80 mb-4 text-lg">📧 {CONTACT_EMAIL}</p>
+                      <p className="text-white/80 mb-4 text-lg">📞 {CONTACT_PHONE_DISPLAY}</p>
                       <p className="text-white/80 text-lg">🌐 www.kirtibuildwell.com</p>
                       <div className="mt-8 flex justify-center gap-4">
                         <Link

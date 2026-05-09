@@ -1,16 +1,20 @@
 import './globals.css'
 import React from 'react'
-import { generateMetadata } from '../lib/seo'
-{/* <meta name="google-site-verification" content="Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro" /> */}
 import type { Metadata } from "next";
+import { SITE_NAME, SITE_TAGLINE, SITE_URL } from '../lib/site'
 
 export const metadata: Metadata = {
-  title: "KirtiBuildWell | Luxury Real Estate in Lucknow",
-  description: "Premium real estate developer in Lucknow...",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_NAME,
+  description: SITE_TAGLINE,
   verification: {
     google: "Nvb3V311UWYF8omXNC2eZysnuWFCZ3BgvgvVKX8Rlro",
   },
 };
+
+export const viewport = {
+  themeColor: '#0b0b0c',
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,7 +26,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         
         {/* Core Web Vitals optimizations */}
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
-        <meta name="theme-color" content="#0b0b0c" />
         
         {/* SEO meta tags */}
         <meta name="geo.region" content="IN-UP" />
